@@ -13,6 +13,7 @@ const app = createApp({
     cookieSecure: env.COOKIE_SECURE,
     rateLimit: { windowMs: env.RATE_LIMIT_WINDOW_MS, max: env.RATE_LIMIT_MAX },
     authRateLimit: { windowMs: env.RATE_LIMIT_WINDOW_MS, max: env.AUTH_RATE_LIMIT_MAX },
+    userRateLimit: { windowMs: env.RATE_LIMIT_WINDOW_MS, max: env.USER_RATE_LIMIT_MAX },
     trustProxy: env.TRUST_PROXY,
   },
 });

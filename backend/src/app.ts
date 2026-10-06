@@ -32,7 +32,7 @@ import { usersRoutes } from './modules/users/users.routes';
 import { UsersService } from './modules/users/users.service';
 import { authenticate } from './shared/middlewares/auth';
 import { errorHandler, notFoundHandler } from './shared/middlewares/errorHandler';
-import { createRateLimiter } from './shared/middlewares/rateLimiter';
+import { createRateLimiter, createUserRateLimiter } from './shared/middlewares/rateLimiter';
 
 export type AppDependencies = {
   prisma: PrismaClient;
@@ -69,7 +69,8 @@ export function createApp({ prisma, config = defaultAppConfig, smsProvider = new
     new UsagesService(usagesRepository, carsRepository, driversRepository),
   );
 
-  const requireAuth = authenticate(tokenService);
+  // Rotas autenticadas: valida o token e aplica o limite por usuário (além do limite global por IP).
+  const requireAuth = [authenticate(tokenService), createUserRateLimiter(config.userRateLimit)];
 
   const app = express();
   app.set('trust proxy', config.trustProxy);

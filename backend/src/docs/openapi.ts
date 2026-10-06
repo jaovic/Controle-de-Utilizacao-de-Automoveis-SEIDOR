@@ -30,7 +30,8 @@ export const openApiDocument = {
       'e um motorista que já esteja utilizando um automóvel não pode utilizar outro ao mesmo tempo.\n\n' +
       '**Rate limit:** todas as rotas são limitadas por IP (padrão: 100 requisições por minuto). ' +
       'Ao exceder, a API responde `429` com os headers `RateLimit` e `Retry-After`. ' +
-      'As rotas de login e códigos SMS têm um limite mais rígido.\n\n' +
+      'As rotas de login e códigos SMS têm um limite mais rígido, e as rotas autenticadas também são limitadas ' +
+      'por usuário (padrão: 60 por minuto), identificado pelo token.\n\n' +
       '**Autenticação:** faça login em `POST /api/auth/login`, copie o `accessToken` e clique em **Authorize**. ' +
       'O frontend usa os mesmos tokens via cookies httpOnly.\n\n' +
       '- O cadastro exige confirmar o telefone por SMS (`POST /api/auth/verify-phone`) antes do primeiro login.\n' +

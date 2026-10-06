@@ -57,7 +57,7 @@ npm run dev                                  # http://localhost:3000
 ### Testes
 
 ```bash
-cd backend && npm test     # 79 testes (unitários + HTTP), sem precisar de banco
+cd backend && npm test     # 83 testes (unitários + HTTP), sem precisar de banco
 cd frontend && npm run lint && npm run build
 ```
 
@@ -76,7 +76,7 @@ Cadastro ──► SMS com código ──► Verificar telefone ──► Login 
 - **Códigos:** 6 dígitos, válidos por 5 minutos, no máximo 5 tentativas e 30 segundos entre reenvios. No banco fica apenas o hash, nas colunas `two_factor_code*` da tabela `users`.
 - **Sessão:** access token JWT de 15 minutos mais refresh token de 7 dias, opaco, guardado como hash e **rotacionado a cada uso**. Se um refresh token já usado for reaproveitado, todas as sessões do usuário são revogadas.
 - **Cookies:** a API define cookies `httpOnly` (`access_token`, `refresh_token`) e também devolve os tokens no corpo da resposta, para Swagger e Postman. As rotas aceitam `Authorization: Bearer` **ou** o cookie.
-- **Proteção extra:** rate limit global por IP (100/min) e um mais rígido nas rotas de login, cadastro e códigos (10/min).
+- **Rate limit em três camadas:** por IP em todas as rotas (100/min); mais rígido por IP no login, cadastro e códigos (10/min); e **por usuário** nas rotas autenticadas (60/min), identificado pelo `sub` do token. Assim, colegas atrás do mesmo IP da empresa não se bloqueiam, e uma conta não escapa do limite trocando de IP. A chave é o usuário, e não a string do token, porque o token muda a cada refresh e zeraria o contador.
 
 ### Roles
 
@@ -142,6 +142,7 @@ Gere um domínio público em **Settings → Networking**. Ao iniciar, o containe
 | `COOKIE_SECURE` | `false` | `true` em HTTPS |
 | `SMS_PROVIDER` | `console` | `console` ou `twilio` |
 | `RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_MAX` | `100` / `10` | Requisições por IP por minuto (geral / login) |
+| `USER_RATE_LIMIT_MAX` | `60` | Requisições por usuário autenticado por minuto |
 | `TRUST_PROXY` | `0` | Proxies à frente da API |
 
 O arquivo completo, com comentários, é o [backend/.env.example](backend/.env.example).

@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import request from 'supertest';
 import { createApp } from '../src/app';
 import { type AppConfig, defaultAppConfig } from '../src/config/appConfig';
+import { TokenService } from '../src/modules/auth/token.service';
 
 const appWith = (overrides: Partial<AppConfig>) =>
   createApp({ prisma: {} as PrismaClient, config: { ...defaultAppConfig, ...overrides } });
@@ -44,5 +45,57 @@ describe('Rate limit', () => {
     expect(first.status).toBe(400);
     expect(blocked.status).toBe(429);
     expect(health.status).toBe(200);
+  });
+});
+
+describe('Rate limit por usuário (token)', () => {
+  const tokens = new TokenService(defaultAppConfig.jwtSecret, defaultAppConfig.accessTokenTtlMinutes);
+  const tokenFor = (userId: string) => tokens.signAccessToken({ userId, role: 'USER' });
+  const userA = tokenFor('6f1c1f1e-0000-4000-8000-00000000000a');
+  const userB = tokenFor('6f1c1f1e-0000-4000-8000-00000000000b');
+
+  // id inválido: responde 400 na validação, sem tocar no banco, mas passa pelo limite
+  const call = (app: ReturnType<typeof appWith>, token: string) =>
+    request(app).get('/api/drivers/123').set('Authorization', `Bearer ${token}`);
+
+  it('limita cada usuário separadamente, mesmo vindo do mesmo IP', async () => {
+    const app = appWith({ userRateLimit: { windowMs: 60_000, max: 1 } });
+
+    const first = await call(app, userA);
+    const blocked = await call(app, userA);
+    const otherUser = await call(app, userB);
+
+    expect(first.status).toBe(400);
+    expect(blocked.status).toBe(429);
+    expect(blocked.body.error.message).toMatch(/esta conta/);
+    expect(otherUser.status).toBe(400);
+  });
+
+  it('o mesmo usuário continua limitado ao trocar de IP', async () => {
+    const app = appWith({ userRateLimit: { windowMs: 60_000, max: 1 }, trustProxy: 1 });
+
+    await call(app, userA).set('X-Forwarded-For', '10.0.0.1');
+    const fromOtherIp = await call(app, userA).set('X-Forwarded-For', '10.0.0.2');
+
+    expect(fromOtherIp.status).toBe(429);
+  });
+
+  it('um novo token do mesmo usuário (após refresh) não zera o limite', async () => {
+    const app = appWith({ userRateLimit: { windowMs: 60_000, max: 1 } });
+    const sameUserNewToken = tokens.signAccessToken({ userId: '6f1c1f1e-0000-4000-8000-00000000000a', role: 'ADMIN' });
+
+    await call(app, userA);
+    const afterRefresh = await call(app, sameUserNewToken);
+
+    expect(afterRefresh.status).toBe(429);
+  });
+
+  it('não se aplica a requisições sem token (401 antes do limite)', async () => {
+    const app = appWith({ userRateLimit: { windowMs: 60_000, max: 1 } });
+
+    await request(app).get('/api/cars');
+    const second = await request(app).get('/api/cars');
+
+    expect(second.status).toBe(401);
   });
 });

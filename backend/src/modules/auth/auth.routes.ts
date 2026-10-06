@@ -13,7 +13,8 @@ import {
 
 type AuthRoutesDeps = {
   controller: AuthController;
-  authenticate: RequestHandler;
+  /** autenticação + limite por usuário */
+  authenticate: RequestHandler[];
   /** limite mais rígido para rotas sujeitas a força bruta (login, códigos SMS) */
   strictRateLimit: RequestHandler;
 };

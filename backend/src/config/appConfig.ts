@@ -8,6 +8,8 @@ export type AppConfig = {
   cookieSecure: boolean;
   rateLimit: RateLimitOptions;
   authRateLimit: RateLimitOptions;
+  /** limite por usuário autenticado (sub do access token) */
+  userRateLimit: RateLimitOptions;
   /** Quantidade de proxies confiáveis à frente da API (ex.: Railway + Vercel = 2), para obter o IP real */
   trustProxy: number;
 };
@@ -19,5 +21,6 @@ export const defaultAppConfig: AppConfig = {
   cookieSecure: false,
   rateLimit: { windowMs: 60_000, max: 100 },
   authRateLimit: { windowMs: 60_000, max: 10 },
+  userRateLimit: { windowMs: 60_000, max: 60 },
   trustProxy: 0,
 };
