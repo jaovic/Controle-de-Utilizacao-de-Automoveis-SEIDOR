@@ -7,10 +7,11 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Badge, Button, ConfirmModal, Field, Input, Modal, PageHeader, Select, Spinner, Table, Td, Textarea } from "@/components/ui";
+import { Alert, Badge, Button, ConfirmModal, Field, Modal, PageHeader, Select, Spinner, Table, Td, Textarea } from "@/components/ui";
+import { DateTimePicker, roundDownTo5Minutes } from "@/components/DateTimePicker";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { api } from "@/lib/api";
-import { formatDateTime, localInputToIso } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import type { Car, Driver, Usage } from "@/lib/types";
 
 const STATUS_FILTERS = [
@@ -116,7 +117,6 @@ const startSchema = z.object({
   carId: z.string().min(1, "Selecione o automóvel"),
   driverId: z.string().min(1, "Selecione o motorista"),
   reason: z.string().trim().min(1, "Informe o motivo"),
-  startedAt: z.string().optional(),
 });
 type StartForm = z.infer<typeof startSchema>;
 
@@ -134,9 +134,14 @@ function StartUsageModal({ onClose }: { onClose: () => void }) {
     formState: { errors },
   } = useForm<StartForm>({ resolver: zodResolver(startSchema) });
 
+  // Na maioria das vezes a utilização começa agora; data e hora só aparecem se o usuário escolher.
+  const [startsNow, setStartsNow] = useState(true);
+  const [startedAt, setStartedAt] = useState(() => roundDownTo5Minutes(new Date()));
+  const startIsInFuture = !startsNow && startedAt > new Date();
+
   const start = useApiMutation({
-    mutationFn: ({ startedAt, ...data }: StartForm) =>
-      api("/usages", { method: "POST", body: { ...data, startedAt: localInputToIso(startedAt) } }),
+    mutationFn: (data: StartForm) =>
+      api("/usages", { method: "POST", body: { ...data, startedAt: startsNow ? undefined : startedAt.toISOString() } }),
     invalidate: [["usages"]],
     successMessage: "Utilização iniciada.",
     onSuccess: onClose,
@@ -149,7 +154,7 @@ function StartUsageModal({ onClose }: { onClose: () => void }) {
       {loading ? (
         <Spinner />
       ) : (
-        <form onSubmit={handleSubmit((data) => start.mutate(data))} className="space-y-4" noValidate>
+        <form onSubmit={handleSubmit((data) => !startIsInFuture && start.mutate(data))} className="space-y-4" noValidate>
           <Field label="Automóvel" htmlFor="carId" error={errors.carId?.message}>
             <Select id="carId" defaultValue="" {...register("carId")}>
               <option value="" disabled>
@@ -179,9 +184,35 @@ function StartUsageModal({ onClose }: { onClose: () => void }) {
           <Field label="Motivo" htmlFor="reason" error={errors.reason?.message}>
             <Textarea id="reason" placeholder="Ex.: visita a cliente" {...register("reason")} />
           </Field>
-          <Field label="Início" htmlFor="startedAt" hint="Opcional. Se vazio, usa o horário atual.">
-            <Input id="startedAt" type="datetime-local" {...register("startedAt")} />
-          </Field>
+          <fieldset className="space-y-2">
+            <legend className="mb-1.5 text-sm font-medium text-slate-700">Início</legend>
+            <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup">
+              {[
+                { now: true, label: "Agora" },
+                { now: false, label: "Outra data e hora" },
+              ].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  role="radio"
+                  aria-checked={startsNow === option.now}
+                  onClick={() => setStartsNow(option.now)}
+                  className={clsx(
+                    "rounded-md py-1.5 text-sm font-medium transition-colors",
+                    startsNow === option.now ? "bg-white text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-700",
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {!startsNow && (
+              <>
+                <DateTimePicker idPrefix="startedAt" value={startedAt} onChange={setStartedAt} maxDate={new Date()} />
+                {startIsInFuture && <p className="text-xs text-red-600">O início não pode estar no futuro.</p>}
+              </>
+            )}
+          </fieldset>
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
