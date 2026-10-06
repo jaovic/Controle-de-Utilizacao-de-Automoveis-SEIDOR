@@ -1,13 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Button, ConfirmModal, Field, Input, Modal, PageHeader, Spinner, Table, Td } from "@/components/ui";
+import { Alert, Button, ConfirmModal, Field, Input, Modal, PageHeader, SearchInput, Spinner, Table, Td } from "@/components/ui";
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMe } from "@/hooks/useMe";
 import { api } from "@/lib/api";
 import type { Car } from "@/lib/types";
@@ -29,8 +30,18 @@ export default function CarsPage() {
   const [editing, setEditing] = useState<Car | "new" | null>(null);
   const [deleting, setDeleting] = useState<Car | null>(null);
 
-  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value)).toString();
-  const cars = useQuery({ queryKey: ["cars", filters], queryFn: () => api<Car[]>(`/cars${query ? `?${query}` : ""}`) });
+  // Filtra enquanto digita: a busca parte de trechos ("pra" encontra "Prata") e só dispara após uma pausa.
+  const debouncedFilters = useDebouncedValue(filters);
+  const query = new URLSearchParams(
+    Object.entries(debouncedFilters)
+      .map(([key, value]) => [key, value.trim()])
+      .filter(([, value]) => value),
+  ).toString();
+  const cars = useQuery({
+    queryKey: ["cars", query],
+    queryFn: () => api<Car[]>(`/cars${query ? `?${query}` : ""}`),
+    placeholderData: keepPreviousData, // mantém a lista anterior na tela enquanto busca a nova
+  });
 
   const remove = useApiMutation({
     mutationFn: (car: Car) => api(`/cars/${car.id}`, { method: "DELETE" }),
@@ -38,12 +49,6 @@ export default function CarsPage() {
     successMessage: "Automóvel excluído.",
     onSuccess: () => setDeleting(null),
   });
-
-  function applyFilters(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    setFilters({ color: String(form.get("color") ?? "").trim(), brand: String(form.get("brand") ?? "").trim() });
-  }
 
   return (
     <>
@@ -59,13 +64,18 @@ export default function CarsPage() {
         }
       />
 
-      <form onSubmit={applyFilters} className="mb-4 flex flex-col gap-2 sm:flex-row">
-        <Input name="color" placeholder="Cor (ex.: Prata)" aria-label="Filtrar por cor" className="sm:max-w-48" />
-        <Input name="brand" placeholder="Marca (ex.: Fiat)" aria-label="Filtrar por marca" className="sm:max-w-48" />
-        <Button type="submit" variant="secondary">
-          Filtrar
-        </Button>
-      </form>
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row" role="search">
+        <SearchInput
+          value={filters.color}
+          onChange={(color) => setFilters((current) => ({ ...current, color }))}
+          placeholder="Filtrar por cor"
+        />
+        <SearchInput
+          value={filters.brand}
+          onChange={(brand) => setFilters((current) => ({ ...current, brand }))}
+          placeholder="Filtrar por marca"
+        />
+      </div>
 
       {!isAdmin && (
         <div className="mb-4">

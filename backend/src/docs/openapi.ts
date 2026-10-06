@@ -215,8 +215,8 @@ export const openApiDocument = {
         tags: ['Automóveis'],
         summary: 'Lista os automóveis (filtros por cor e marca)',
         parameters: [
-          { name: 'color', in: 'query', schema: { type: 'string' }, description: 'Cor exata, sem diferenciar maiúsculas', example: 'Prata' },
-          { name: 'brand', in: 'query', schema: { type: 'string' }, description: 'Marca exata, sem diferenciar maiúsculas', example: 'Fiat' },
+          { name: 'color', in: 'query', schema: { type: 'string' }, description: 'Parte da cor, sem diferenciar maiúsculas (ex.: "pra" encontra "Prata")', example: 'pra' },
+          { name: 'brand', in: 'query', schema: { type: 'string' }, description: 'Parte da marca, sem diferenciar maiúsculas', example: 'fi' },
         ],
         responses: { 200: response('Lista de automóveis', { type: 'array', items: ref('Car') }) },
       },

@@ -1,13 +1,14 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Button, ConfirmModal, Field, Input, Modal, PageHeader, Spinner, Table, Td } from "@/components/ui";
+import { Alert, Button, ConfirmModal, Field, Input, Modal, PageHeader, SearchInput, Spinner, Table, Td } from "@/components/ui";
 import { useApiMutation } from "@/hooks/useApiMutation";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useMe } from "@/hooks/useMe";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -22,9 +23,12 @@ export default function DriversPage() {
   const [editing, setEditing] = useState<Driver | "new" | null>(null);
   const [deleting, setDeleting] = useState<Driver | null>(null);
 
+  // Filtra enquanto digita (por trecho do nome), disparando a busca só após uma pausa.
+  const search = useDebouncedValue(name).trim();
   const drivers = useQuery({
-    queryKey: ["drivers", name],
-    queryFn: () => api<Driver[]>(`/drivers${name ? `?name=${encodeURIComponent(name)}` : ""}`),
+    queryKey: ["drivers", search],
+    queryFn: () => api<Driver[]>(`/drivers${search ? `?name=${encodeURIComponent(search)}` : ""}`),
+    placeholderData: keepPreviousData,
   });
 
   const remove = useApiMutation({
@@ -33,11 +37,6 @@ export default function DriversPage() {
     successMessage: "Motorista excluído.",
     onSuccess: () => setDeleting(null),
   });
-
-  function applyFilter(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setName(String(new FormData(event.currentTarget).get("name") ?? "").trim());
-  }
 
   return (
     <>
@@ -53,12 +52,9 @@ export default function DriversPage() {
         }
       />
 
-      <form onSubmit={applyFilter} className="mb-4 flex flex-col gap-2 sm:flex-row">
-        <Input name="name" placeholder="Buscar por nome" aria-label="Filtrar por nome" className="sm:max-w-64" />
-        <Button type="submit" variant="secondary">
-          Buscar
-        </Button>
-      </form>
+      <div className="mb-4" role="search">
+        <SearchInput value={name} onChange={setName} placeholder="Filtrar por nome" />
+      </div>
 
       {!isAdmin && (
         <div className="mb-4">

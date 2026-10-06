@@ -1,7 +1,7 @@
 "use client";
 
 import clsx from "clsx";
-import { Loader2, X } from "lucide-react";
+import { Loader2, Search, X } from "lucide-react";
 import { forwardRef, useEffect, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from "react";
 
 /* ---------- Button ---------- */
@@ -63,6 +63,33 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<H
 ) {
   return <textarea ref={ref} className={clsx(fieldClass, "min-h-20", className)} {...props} />;
 });
+
+/** Campo de busca que filtra enquanto digita, com botão para limpar. */
+export function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return (
+    <div className="relative sm:w-56">
+      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" aria-hidden />
+      <input
+        type="search"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className={clsx(fieldClass, "h-10 pl-9 pr-8 [&::-webkit-search-cancel-button]:hidden")}
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-slate-400 hover:text-slate-600"
+          aria-label="Limpar filtro"
+        >
+          <X className="size-4" />
+        </button>
+      )}
+    </div>
+  );
+}
 
 export function Field({ label, htmlFor, error, hint, children }: { label: string; htmlFor: string; error?: string; hint?: string; children: ReactNode }) {
   return (

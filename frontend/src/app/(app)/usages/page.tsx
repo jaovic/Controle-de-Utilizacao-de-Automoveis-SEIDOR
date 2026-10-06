@@ -121,7 +121,7 @@ const startSchema = z.object({
 type StartForm = z.infer<typeof startSchema>;
 
 function StartUsageModal({ onClose }: { onClose: () => void }) {
-  const cars = useQuery({ queryKey: ["cars", {}], queryFn: () => api<Car[]>("/cars") });
+  const cars = useQuery({ queryKey: ["cars", ""], queryFn: () => api<Car[]>("/cars") });
   const drivers = useQuery({ queryKey: ["drivers", ""], queryFn: () => api<Driver[]>("/drivers") });
   // Mostra quem já está em uso para evitar o 409 antes mesmo de enviar.
   const activeUsages = useQuery({ queryKey: ["usages", "true"], queryFn: () => api<Usage[]>("/usages?active=true") });

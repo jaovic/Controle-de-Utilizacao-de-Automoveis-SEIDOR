@@ -37,8 +37,8 @@ export class PrismaCarsRepository implements CarsRepository {
   list({ color, brand }: ListCarsFilters) {
     return this.prisma.car.findMany({
       where: {
-        ...(color && { color: { equals: color, mode: 'insensitive' } }),
-        ...(brand && { brand: { equals: brand, mode: 'insensitive' } }),
+        ...(color && { color: { contains: color, mode: 'insensitive' } }),
+        ...(brand && { brand: { contains: brand, mode: 'insensitive' } }),
       },
       orderBy: { createdAt: 'desc' },
     });
