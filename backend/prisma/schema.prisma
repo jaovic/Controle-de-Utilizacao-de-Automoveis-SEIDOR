@@ -52,3 +52,51 @@ model CarUsage {
   @@index([driverId])
   @@map("car_usages")
 }
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum TwoFactorPurpose {
+  PHONE_VERIFICATION
+  LOGIN
+}
+
+/// Usuário do sistema. O telefone é verificado por SMS no cadastro (obrigatório antes do
+/// primeiro login) e, se two_factor_enabled estiver ativo, todo login exige um código por SMS.
+model User {
+  id                     String            @id @default(uuid()) @db.Uuid
+  name                   String
+  email                  String            @unique
+  passwordHash           String            @map("password_hash")
+  role                   Role              @default(USER)
+  phone                  String
+  phoneVerifiedAt        DateTime?         @map("phone_verified_at")
+  twoFactorEnabled       Boolean           @default(false) @map("two_factor_enabled")
+  /// Hash SHA-256 do código enviado por SMS (nunca o código em texto puro)
+  twoFactorCode          String?           @map("two_factor_code")
+  twoFactorCodePurpose   TwoFactorPurpose? @map("two_factor_code_purpose")
+  twoFactorCodeExpiresAt DateTime?         @map("two_factor_code_expires_at")
+  twoFactorAttempts      Int               @default(0) @map("two_factor_attempts")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  refreshTokens          RefreshToken[]
+
+  @@map("users")
+}
+
+/// Refresh tokens opacos (armazenados como hash). Rotacionados a cada uso.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}

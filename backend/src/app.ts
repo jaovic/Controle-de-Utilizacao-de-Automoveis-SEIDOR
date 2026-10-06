@@ -1,9 +1,19 @@
 import type { PrismaClient } from '@prisma/client';
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express from 'express';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
+import { type AppConfig, defaultAppConfig } from './config/appConfig';
 import { openApiDocument } from './docs/openapi';
+import { ConsoleSmsProvider } from './infra/sms/ConsoleSmsProvider';
+import type { SmsProvider } from './infra/sms/SmsProvider';
+import { AuthController } from './modules/auth/auth.controller';
+import { authRoutes } from './modules/auth/auth.routes';
+import { AuthService } from './modules/auth/auth.service';
+import { PrismaRefreshTokensRepository } from './modules/auth/refreshTokens.repository';
+import { TokenService } from './modules/auth/token.service';
+import { TwoFactorCodeService } from './modules/auth/twoFactorCode.service';
 import { CarsController } from './modules/cars/cars.controller';
 import { PrismaCarsRepository } from './modules/cars/cars.repository';
 import { carsRoutes } from './modules/cars/cars.routes';
@@ -16,40 +26,60 @@ import { UsagesController } from './modules/usages/usages.controller';
 import { PrismaUsagesRepository } from './modules/usages/usages.repository';
 import { usagesRoutes } from './modules/usages/usages.routes';
 import { UsagesService } from './modules/usages/usages.service';
+import { UsersController } from './modules/users/users.controller';
+import { PrismaUsersRepository } from './modules/users/users.repository';
+import { usersRoutes } from './modules/users/users.routes';
+import { UsersService } from './modules/users/users.service';
+import { authenticate } from './shared/middlewares/auth';
 import { errorHandler, notFoundHandler } from './shared/middlewares/errorHandler';
-import { createRateLimiter, type RateLimitOptions } from './shared/middlewares/rateLimiter';
+import { createRateLimiter } from './shared/middlewares/rateLimiter';
 
-export type AppOptions = {
-  rateLimit?: RateLimitOptions;
-  /** Quantidade de proxies confiáveis à frente da API (ex.: 1 no Render/Railway), para obter o IP real */
-  trustProxy?: number;
+export type AppDependencies = {
+  prisma: PrismaClient;
+  config?: AppConfig;
+  smsProvider?: SmsProvider;
 };
 
-const DEFAULT_RATE_LIMIT: RateLimitOptions = { windowMs: 60_000, max: 100 };
-
 /**
- * Monta a aplicação Express. Recebe o PrismaClient por parâmetro (composition root),
- * o que permite subir a app nos testes sem depender de um banco real.
+ * Monta a aplicação Express (composition root). As dependências externas (banco, SMS, config)
+ * chegam por parâmetro, o que permite subir a app nos testes sem banco nem Twilio.
  */
-export function createApp(prisma: PrismaClient, options: AppOptions = {}) {
+export function createApp({ prisma, config = defaultAppConfig, smsProvider = new ConsoleSmsProvider() }: AppDependencies) {
+  const tokenService = new TokenService(config.jwtSecret, config.accessTokenTtlMinutes);
+
   const carsRepository = new PrismaCarsRepository(prisma);
   const driversRepository = new PrismaDriversRepository(prisma);
   const usagesRepository = new PrismaUsagesRepository(prisma);
+  const usersRepository = new PrismaUsersRepository(prisma);
+  const refreshTokensRepository = new PrismaRefreshTokensRepository(prisma);
 
+  const authService = new AuthService(
+    usersRepository,
+    refreshTokensRepository,
+    tokenService,
+    new TwoFactorCodeService(usersRepository, smsProvider),
+    config.refreshTokenTtlDays,
+  );
+
+  const authController = new AuthController(authService, config.cookieSecure);
+  const usersController = new UsersController(new UsersService(usersRepository));
   const carsController = new CarsController(new CarsService(carsRepository));
   const driversController = new DriversController(new DriversService(driversRepository));
   const usagesController = new UsagesController(
     new UsagesService(usagesRepository, carsRepository, driversRepository),
   );
 
+  const requireAuth = authenticate(tokenService);
+
   const app = express();
-  app.set('trust proxy', options.trustProxy ?? 0);
+  app.set('trust proxy', config.trustProxy);
 
   // CSP desativada apenas para o Swagger UI carregar seus assets inline.
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(cors());
-  app.use(createRateLimiter(options.rateLimit ?? DEFAULT_RATE_LIMIT));
+  app.use(createRateLimiter(config.rateLimit));
   app.use(express.json());
+  app.use(cookieParser());
 
   app.get('/', (_req, res) => res.redirect('/docs'));
   app.get('/health', (_req, res) => {
@@ -60,9 +90,18 @@ export function createApp(prisma: PrismaClient, options: AppOptions = {}) {
   });
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(openApiDocument));
 
-  app.use('/api/cars', carsRoutes(carsController));
-  app.use('/api/drivers', driversRoutes(driversController));
-  app.use('/api/usages', usagesRoutes(usagesController));
+  app.use(
+    '/api/auth',
+    authRoutes({
+      controller: authController,
+      authenticate: requireAuth,
+      strictRateLimit: createRateLimiter(config.authRateLimit),
+    }),
+  );
+  app.use('/api/users', requireAuth, usersRoutes(usersController));
+  app.use('/api/cars', requireAuth, carsRoutes(carsController));
+  app.use('/api/drivers', requireAuth, driversRoutes(driversController));
+  app.use('/api/usages', requireAuth, usagesRoutes(usagesController));
 
   app.use(notFoundHandler);
   app.use(errorHandler);
