@@ -1,136 +1,182 @@
-# TTP: Controle de Utilização de Automóveis
+# TTP Frota: controle de utilização de automóveis
 
-WebAPI em Node.js para controlar o uso dos automóveis de uma empresa: cadastro de **automóveis** e **motoristas** e registro de **utilizações** (início, fim e motivo).
+Sistema web para controlar o uso dos automóveis de uma empresa: cadastro de **automóveis** e **motoristas**, registro de **utilizações** (quem está com qual carro, desde quando e por quê), com **login próprio**, **verificação do telefone por SMS**, **2FA opcional** e **perfis de acesso (roles)**.
 
-**Regras de negócio:** um automóvel só pode ser usado por um motorista por vez, e um motorista que já está usando um automóvel não pode usar outro ao mesmo tempo.
+**Regras de negócio:** um automóvel só pode ser usado por um motorista por vez, e um motorista que já está com um automóvel não pode pegar outro ao mesmo tempo.
 
-- **Deploy:** `https://SUA-URL-DE-DEPLOY` · Swagger em `/docs`
-- **Stack:** Node 20 · TypeScript · Express 5 · Prisma · PostgreSQL (Supabase em produção) · Zod · Jest · Docker
+| Parte | Stack | Deploy |
+| --- | --- | --- |
+| `backend/` | Node 20, TypeScript, Express 5, Prisma, Zod, JWT, Twilio, Jest | Railway (Dockerfile) |
+| `frontend/` | Next.js 16 (App Router), React 19, Tailwind 4, TanStack Query | Vercel |
+| Banco | PostgreSQL 16 | Supabase (produção) / Docker (local) |
 
 ---
 
-## Como rodar
-
-### Com Docker (recomendado)
+## Rodar localmente (Docker)
 
 Pré-requisito: Docker com Docker Compose.
 
 ```bash
-git clone <url-do-repositorio> ttp-backend
-cd ttp-backend
+git clone <url-do-repositorio> ttp-completo
+cd ttp-completo
 docker compose up --build
 ```
 
-Esse comando sobe o Postgres, aplica as migrations, cria alguns dados de exemplo e inicia a API. Não é preciso criar `.env`.
+| Serviço | URL |
+| --- | --- |
+| Frontend | http://localhost:3000 |
+| API | http://localhost:3333 |
+| Swagger | http://localhost:3333/docs |
+| Postgres | `localhost:5432`, banco `ttp`, usuário e senha `postgres` |
 
-- API: http://localhost:3333
-- Swagger: http://localhost:3333/docs
+Ao subir, a API aplica as migrations e cria:
+- um **administrador** com e-mail `admin@ttp.local` e senha `Admin@123`;
+- alguns automóveis e motoristas de exemplo.
 
-Para parar, use `docker compose down`. Para apagar também os dados, use `docker compose down -v`.
+**SMS em ambiente local:** o compose usa `SMS_PROVIDER=console`. Nenhum SMS é enviado: o código aparece **na própria tela** (aviso amarelo) e no log da API (`docker compose logs -f api`). Assim dá para testar cadastro e 2FA sem conta na Twilio.
 
-### Sem Docker (modo desenvolvimento)
+Para parar, use `docker compose down`. Para apagar também o banco, use `docker compose down -v`.
 
-Pré-requisitos: Node 20+ e um Postgres acessível. Para usar só o banco do compose, rode `docker compose up -d db`.
+### Sem Docker (desenvolvimento)
 
 ```bash
-cp .env.example .env      # ajuste DATABASE_URL/DIRECT_URL se necessário
+docker compose up -d db                      # só o Postgres
+
+cd backend
+cp .env.example .env
 npm install
-npx prisma migrate deploy # cria as tabelas
-npm run seed              # opcional: dados de exemplo
-npm run dev               # http://localhost:3333
+npx prisma migrate deploy && npm run seed
+npm run dev                                  # http://localhost:3333
+
+cd ../frontend
+cp .env.example .env.local                   # BACKEND_URL=http://localhost:3333
+npm install
+npm run dev                                  # http://localhost:3000
 ```
 
 ### Testes
 
 ```bash
-npm test                 # testes unitários e de HTTP (não precisam de banco)
-npm run test:coverage
+cd backend && npm test     # 79 testes (unitários + HTTP), sem precisar de banco
+cd frontend && npm run lint && npm run build
 ```
 
 ---
 
-## Variáveis de ambiente
+## Autenticação
 
-| Variável       | Descrição                                                                            | Exemplo local                                                |
-| -------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
-| `PORT`         | Porta HTTP                                                                           | `3333`                                                       |
-| `DATABASE_URL` | Conexão usada pela aplicação                                                         | `postgresql://postgres:postgres@localhost:5432/ttp?schema=public` |
-| `DIRECT_URL`   | Conexão direta usada pelas migrations (local: igual à `DATABASE_URL`)                | idem                                                         |
-| `SEED`         | Só no container: `true` popula o banco com dados de exemplo ao iniciar               | `true`                                                       |
-| `RATE_LIMIT_WINDOW_MS` | Janela do rate limit, em ms                                                  | `60000`                                                      |
-| `RATE_LIMIT_MAX` | Máximo de requisições por IP dentro da janela                                      | `100`                                                        |
-| `TRUST_PROXY`  | Quantidade de proxies à frente da API, para o rate limit usar o IP real (`1` no Render/Railway) | `0`                                               |
-
-### Supabase
-
-No painel do Supabase, abra **Connect**. Lá ficam as duas strings de conexão:
-
-```env
-# Transaction pooler (porta 6543), usada pela API
-DATABASE_URL="postgresql://postgres.<ref>:<senha>@aws-0-<regiao>.pooler.supabase.com:6543/postgres?pgbouncer=true"
-# Conexão direta / session pooler (porta 5432), usada pelas migrations
-DIRECT_URL="postgresql://postgres.<ref>:<senha>@aws-0-<regiao>.pooler.supabase.com:5432/postgres"
+```
+Cadastro ──► SMS com código ──► Verificar telefone ──► Login ──► (2FA ativo?) ──► SMS ──► Código ──► Sessão
+                                 (obrigatório 1x)                     └── não ──────────────────────► Sessão
 ```
 
-O deploy usa a mesma imagem Docker (Render, Railway, Fly.io etc.): basta configurar essas duas variáveis e `TRUST_PROXY=1`. Ao iniciar, o container roda `prisma migrate deploy` antes de subir a API.
+- **Cadastro:** nome, e-mail, celular no formato internacional (`+5511999998888`) e senha (mínimo 8 caracteres, com letra e número). A conta nasce com role `USER`.
+- **Verificação do telefone:** obrigatória **uma única vez**, antes do primeiro login. Enquanto ela não for feita, o login responde `403 PHONE_NOT_VERIFIED`, o front leva o usuário para a tela de verificação e um novo código é enviado.
+- **2FA no login (opcional):** em **Meu perfil**, o usuário ativa a verificação em duas etapas, confirmando com a senha. A partir daí, todo login pede também um código por SMS.
+- **Códigos:** 6 dígitos, válidos por 5 minutos, no máximo 5 tentativas e 30 segundos entre reenvios. No banco fica apenas o hash, nas colunas `two_factor_code*` da tabela `users`.
+- **Sessão:** access token JWT de 15 minutos mais refresh token de 7 dias, opaco, guardado como hash e **rotacionado a cada uso**. Se um refresh token já usado for reaproveitado, todas as sessões do usuário são revogadas.
+- **Cookies:** a API define cookies `httpOnly` (`access_token`, `refresh_token`) e também devolve os tokens no corpo da resposta, para Swagger e Postman. As rotas aceitam `Authorization: Bearer` **ou** o cookie.
+- **Proteção extra:** rate limit global por IP (100/min) e um mais rígido nas rotas de login, cadastro e códigos (10/min).
+
+### Roles
+
+| Ação | USER | ADMIN |
+| --- | :---: | :---: |
+| Ver automóveis, motoristas e utilizações | ✅ | ✅ |
+| Iniciar e finalizar utilizações | ✅ | ✅ |
+| Cadastrar, editar e excluir automóveis e motoristas | ❌ | ✅ |
+| Listar usuários, alterar role e excluir usuários | ❌ | ✅ |
+
+O sistema sempre mantém ao menos um administrador, e ninguém altera a própria role.
+
+### Por que funciona igual em localhost e em produção
+
+O navegador **só conversa com o domínio do front**. O Next tem uma rota `/api/*` ([route.ts](frontend/src/app/api/[...path]/route.ts)) que repassa cada chamada para a API (`BACKEND_URL`) e devolve os cookies. Com isso:
+
+- os cookies de sessão pertencem ao domínio do front (`localhost:3000` ou `*.vercel.app`), sem CORS e sem cookies de terceiros, que os navegadores bloqueiam entre Vercel e Railway;
+- `BACKEND_URL` é lida em tempo de execução, então a mesma build roda no Docker (`http://api:3333`) e na Vercel (URL do Railway).
+
+O [`proxy.ts`](frontend/src/proxy.ts) do Next redireciona quem não tem sessão para `/login` e barra `/admin` para quem não é ADMIN. Quem garante as permissões de fato é a API.
 
 ---
 
-## Endpoints
+## Deploy (Supabase + Railway + Vercel)
 
-Todos os corpos são JSON. A documentação completa, com exemplos, está no **Swagger (`/docs`)**.
+### 1. Supabase (banco)
+Crie o projeto e, em **Connect**, copie as duas strings de conexão:
+- **Transaction pooler** (porta 6543): use como `DATABASE_URL` e acrescente `?pgbouncer=true`;
+- **Session pooler / conexão direta** (porta 5432): use como `DIRECT_URL`, que é a conexão usada pelas migrations.
 
-| Método   | Rota                       | Descrição                                                                |
-| -------- | -------------------------- | ------------------------------------------------------------------------ |
-| `POST`   | `/api/cars`                | Cadastra automóvel `{ plate, color, brand }`                             |
-| `GET`    | `/api/cars?color=&brand=`  | Lista automóveis (filtros opcionais, sem diferenciar maiúsculas)         |
-| `GET`    | `/api/cars/:id`            | Busca automóvel                                                          |
-| `PUT`    | `/api/cars/:id`            | Atualiza automóvel (campos parciais)                                     |
-| `DELETE` | `/api/cars/:id`            | Exclui automóvel                                                         |
-| `POST`   | `/api/drivers`             | Cadastra motorista `{ name }`                                            |
-| `GET`    | `/api/drivers?name=`       | Lista motoristas (filtro por parte do nome)                              |
-| `GET`    | `/api/drivers/:id`         | Busca motorista                                                          |
-| `PUT`    | `/api/drivers/:id`         | Atualiza motorista                                                       |
-| `DELETE` | `/api/drivers/:id`         | Exclui motorista                                                         |
-| `POST`   | `/api/usages`              | Inicia utilização `{ carId, driverId, reason, startedAt? }`              |
-| `PATCH`  | `/api/usages/:id/finish`   | Finaliza utilização `{ endedAt? }`                                       |
-| `GET`    | `/api/usages?active=&carId=&driverId=` | Lista utilizações com o nome do motorista e os dados do automóvel |
-| `GET`    | `/health`                  | Health check                                                             |
+### 2. Railway (API)
+**New Project → Deploy from GitHub repo**. Em **Settings → Root Directory**, use `backend`; o Railway detecta o Dockerfile. Configure estas variáveis:
 
-**Erros** seguem sempre o formato `{ "error": { "message": "...", "details": { ... } } }`:
-`400` para dados inválidos, `404` para recurso inexistente, `409` para regra de negócio violada (carro em uso, motorista ocupado, placa duplicada, utilização já finalizada, exclusão de registro com histórico) e `429` para limite de requisições excedido.
+| Variável | Valor |
+| --- | --- |
+| `DATABASE_URL` / `DIRECT_URL` | as do Supabase |
+| `JWT_SECRET` | aleatório, gerado com `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `COOKIE_SECURE` | `true` |
+| `TRUST_PROXY` | `2` (proxy do Railway + função da Vercel) |
+| `SMS_PROVIDER` | `twilio` |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | do console da Twilio |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_PHONE` / `ADMIN_NAME` | admin inicial (troque a senha padrão) |
+| `SEED` | `true` (cria o admin; é idempotente) |
 
-### Postman
+Gere um domínio público em **Settings → Networking**. Ao iniciar, o container roda `prisma migrate deploy` e o seed.
 
-Importe os arquivos da pasta [`postman/`](postman):
+> Com conta Twilio **trial**, só é possível enviar SMS para números verificados no console da Twilio.
 
-- `TTP.postman_collection.json`: todas as requisições, incluindo os cenários de erro
-- `local.postman_environment.json` / `production.postman_environment.json`: definem `baseUrl`
+### 3. Vercel (front)
+**Add New → Project**, importe o repositório e defina **Root Directory** = `frontend`. Variável:
 
-Rodando a coleção inteira (**Run collection**), o fluxo completo é executado. Os ids criados ficam salvos em variáveis e as placas são aleatórias, então dá para rodar várias vezes.
+| Variável | Valor |
+| --- | --- |
+| `BACKEND_URL` | `https://<seu-servico>.up.railway.app` |
+
+### Variáveis da API (referência)
+
+| Variável | Padrão | Descrição |
+| --- | --- | --- |
+| `JWT_SECRET` | obrigatória | Mínimo de 32 caracteres |
+| `ACCESS_TOKEN_TTL_MINUTES` | `15` | Validade do access token |
+| `REFRESH_TOKEN_TTL_DAYS` | `7` | Validade do refresh token |
+| `COOKIE_SECURE` | `false` | `true` em HTTPS |
+| `SMS_PROVIDER` | `console` | `console` ou `twilio` |
+| `RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_MAX` | `100` / `10` | Requisições por IP por minuto (geral / login) |
+| `TRUST_PROXY` | `0` | Proxies à frente da API |
+
+O arquivo completo, com comentários, é o [backend/.env.example](backend/.env.example).
 
 ---
 
-## Estrutura e decisões
+## API, Swagger e Postman
+
+- **Swagger:** `/docs` na API. Faça login em `POST /api/auth/login`, copie o `accessToken` e use **Authorize**.
+- **Postman:** importe [`postman/`](postman). Rodando a coleção inteira, ela faz login do admin, cadastra e verifica um usuário, testa 2FA, permissões, CRUD, regras de negócio e limpa os dados que criou. Os códigos SMS vêm do campo `devCode` (só em modo local). Por causa do rate limit das rotas de login, espere 1 minuto entre duas execuções completas.
+
+Endpoints principais: `/api/auth/*` (register, verify-phone, resend-code, login, login/verify, refresh, logout, me, me/two-factor), `/api/users` (admin), `/api/cars`, `/api/drivers` e `/api/usages`. Os erros seguem `{ "error": { "message", "code", "details" } }`.
+
+---
+
+## Estrutura
 
 ```
-src/
-  modules/<cars|drivers|usages>/
-    *.routes.ts       rotas + validação
-    *.controller.ts   camada HTTP
-    *.service.ts      regras de negócio
-    *.repository.ts   interface + implementação Prisma
-    *.schemas.ts      schemas Zod (validação e tipos)
-  shared/             erros e middlewares (validação, tratamento de erros)
-  docs/openapi.ts     especificação do Swagger
-  app.ts              composição das dependências e montagem do Express
-prisma/               schema, migrations e seed
-tests/                testes unitários (services) e de HTTP
+backend/
+  prisma/              schema, migrations (inclui índices únicos parciais da regra de negócio), seed
+  src/modules/
+    auth/              cadastro, login, 2FA, tokens, refresh
+    users/             gestão de usuários (admin)
+    cars/ drivers/ usages/
+  src/infra/sms/       SmsProvider: Twilio ou console
+  src/shared/          erros, middlewares (auth, roles, validação, rate limit)
+frontend/
+  src/app/(auth)/      login, cadastro, verificação de telefone, 2FA
+  src/app/(app)/       utilizações, automóveis, motoristas, usuários, perfil
+  src/app/api/         proxy same-origin para a API
+  src/proxy.ts         proteção das rotas
+docker-compose.yml     db + api + web
 ```
 
-- **Camadas com injeção de dependência:** os services dependem de *interfaces* de repositório. Por isso os testes unitários usam mocks e rodam sem banco.
-- **Regra de negócio garantida em dois níveis:** o service valida e retorna `409` com uma mensagem clara. Além disso, a migration cria **índices únicos parciais** (`UNIQUE (car_id) WHERE ended_at IS NULL` e o equivalente para `driver_id`). Com isso, nem requisições simultâneas conseguem deixar o mesmo carro ou motorista em duas utilizações ativas.
-- **Rate limit por IP em todas as rotas** (padrão: 100 requisições por minuto, configurável). Como a API é pública e não tem login, o IP é a única chave disponível para identificar o cliente. O contador fica em memória, o que basta para uma instância. Com várias réplicas, o próximo passo seria guardar o contador no Redis.
-- **Histórico preservado:** automóveis e motoristas que já têm utilizações não podem ser excluídos (`409`).
-- **Placas normalizadas:** `abc-1234` vira `ABC1234`. São aceitos o padrão antigo e o Mercosul (`ABC1D23`).
-- **Datas:** `startedAt` e `endedAt` são opcionais (padrão: agora). O início não pode estar no futuro, e o término não pode ser anterior ao início.
+**Decisões principais:**
+- **Regra de negócio no service e no banco:** índices únicos parciais `WHERE ended_at IS NULL` garantem a regra mesmo com requisições simultâneas.
+- **Camadas com injeção de dependência:** os services dependem de interfaces (repositórios, SMS), o que permite testá-los sem banco nem Twilio.
+- **Segredos nunca em texto puro:** senhas com bcrypt; códigos SMS e refresh tokens com SHA-256.
