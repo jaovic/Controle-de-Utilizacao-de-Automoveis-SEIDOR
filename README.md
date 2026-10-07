@@ -61,7 +61,7 @@ npm run dev                                  # http://localhost:3000
 ### Testes
 
 ```bash
-cd backend && npm test     # 83 testes (unitários + HTTP), sem precisar de banco
+cd backend && npm test     # 89 testes (unitários + HTTP), sem precisar de banco
 cd frontend && npm run lint && npm run build
 ```
 
@@ -128,6 +128,10 @@ Crie o projeto e, em **Connect**, copie as duas strings de conexão:
 Gere um domínio público em **Settings → Networking**. Ao iniciar, o container roda `prisma migrate deploy` e o seed.
 
 > Com conta Twilio **trial**, só é possível enviar SMS para números verificados no console da Twilio.
+> Para que qualquer pessoa consiga testar, defina `SMS_DEMO_FALLBACK=true`: o sistema tenta o SMS e, se a
+> Twilio recusar por limitação da conta (número não verificado ou país não habilitado), mostra o código na tela
+> com um aviso de "modo demonstração". Números verificados continuam recebendo o SMS normalmente. Em produção
+> real (conta paga), deixe `false`.
 
 ### 3. Vercel (front)
 **Add New → Project**, importe o repositório e defina **Root Directory** = `frontend`. Variável:
@@ -145,6 +149,7 @@ Gere um domínio público em **Settings → Networking**. Ao iniciar, o containe
 | `REFRESH_TOKEN_TTL_DAYS` | `7` | Validade do refresh token |
 | `COOKIE_SECURE` | `false` | `true` em HTTPS |
 | `SMS_PROVIDER` | `console` | `console` ou `twilio` |
+| `SMS_DEMO_FALLBACK` | `false` | Com `twilio`: mostra o código na tela quando a conta não consegue enviar para o número |
 | `RATE_LIMIT_MAX` / `AUTH_RATE_LIMIT_MAX` | `100` / `10` | Requisições por IP por minuto (geral / login) |
 | `USER_RATE_LIMIT_MAX` | `60` | Requisições por usuário autenticado por minuto |
 | `TRUST_PROXY` | `0` | Proxies à frente da API |
