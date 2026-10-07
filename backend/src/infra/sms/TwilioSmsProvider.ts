@@ -38,7 +38,8 @@ export class TwilioSmsProvider implements SmsProvider {
 
       const known = code ? KNOWN_ERRORS[code] : undefined;
       if (known) throw new AppError(known.message, known.status, { twilioCode: code }, 'SMS_FAILED');
-      throw new AppError('Não foi possível enviar o SMS. Tente novamente em instantes.', 502, undefined, 'SMS_FAILED');
+      // O código da Twilio vai em details para facilitar o diagnóstico (ex.: 20003 = credenciais inválidas).
+      throw new AppError('Não foi possível enviar o SMS. Tente novamente em instantes.', 502, code ? { twilioCode: code } : undefined, 'SMS_FAILED');
     }
   }
 }
