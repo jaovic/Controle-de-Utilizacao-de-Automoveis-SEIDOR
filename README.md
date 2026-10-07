@@ -4,6 +4,10 @@ Sistema web para controlar o uso dos automóveis de uma empresa: cadastro de **a
 
 **Regras de negócio:** um automóvel só pode ser usado por um motorista por vez, e um motorista que já está com um automóvel não pode pegar outro ao mesmo tempo.
 
+**Em produção:**
+- Aplicação: https://controle-de-utilizacao-de-automovei.vercel.app
+- API (Swagger): https://controle-de-utilizacao-de-automoveis-seidor-production.up.railway.app/docs
+
 | Parte | Stack | Deploy |
 | --- | --- | --- |
 | `backend/` | Node 20, TypeScript, Express 5, Prisma, Zod, JWT, Twilio, Jest | Railway (Dockerfile) |
