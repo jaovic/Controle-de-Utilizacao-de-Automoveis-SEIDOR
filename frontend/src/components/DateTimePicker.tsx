@@ -62,8 +62,15 @@ export function DateTimePicker({
   const update = (changes: { day?: Date; hour?: number; minute?: number }) => {
     const next = new Date(changes.day ?? value);
     next.setHours(changes.hour ?? value.getHours(), changes.minute ?? value.getMinutes(), 0, 0);
-    onChange(next);
+    // Ao escolher hoje com um horário que ainda não chegou, ajusta para o horário máximo permitido.
+    onChange(maxDate && next > maxDate ? roundDownTo5Minutes(maxDate) : next);
   };
+
+  // No dia limite (hoje), horas e minutos que ainda não chegaram ficam desabilitados.
+  const isMaxDay = maxDate !== undefined && value.toDateString() === maxDate.toDateString();
+  const isHourDisabled = (hour: number) => isMaxDay && hour > maxDate.getHours();
+  const isMinuteDisabled = (minute: number) =>
+    isMaxDay && value.getHours() === maxDate.getHours() && minute > maxDate.getMinutes();
 
   return (
     <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -112,7 +119,7 @@ export function DateTimePicker({
           onChange={(event) => update({ hour: Number(event.target.value) })}
         >
           {HOURS.map((hour) => (
-            <option key={hour} value={hour}>
+            <option key={hour} value={hour} disabled={isHourDisabled(hour)}>
               {pad(hour)}
             </option>
           ))}
@@ -125,7 +132,7 @@ export function DateTimePicker({
           onChange={(event) => update({ minute: Number(event.target.value) })}
         >
           {MINUTES.map((minute) => (
-            <option key={minute} value={minute}>
+            <option key={minute} value={minute} disabled={isMinuteDisabled(minute)}>
               {pad(minute)}
             </option>
           ))}
