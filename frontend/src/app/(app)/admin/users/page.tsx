@@ -41,7 +41,7 @@ export default function AdminUsersPage() {
       ) : users.isError ? (
         <Alert tone="error">Não foi possível carregar os usuários.</Alert>
       ) : (
-        <Table headers={["Nome", "Contato", "Role", "Segurança", "Criado em", ""]} empty={users.data?.length === 0}>
+        <Table headers={["Nome", "E-mail", "Role", "Criado em", ""]} empty={users.data?.length === 0}>
           {users.data?.map((user) => {
             const isMe = user.id === me?.id;
             return (
@@ -49,17 +49,8 @@ export default function AdminUsersPage() {
                 <Td className="font-medium text-slate-900">
                   {user.name} {isMe && <span className="text-xs font-normal text-slate-400">(você)</span>}
                 </Td>
-                <Td>
-                  {user.email}
-                  <span className="block text-xs text-slate-500">{user.phone}</span>
-                </Td>
+                <Td>{user.email}</Td>
                 <Td>{user.role === "ADMIN" ? <Badge tone="brand">Admin</Badge> : <Badge>Usuário</Badge>}</Td>
-                <Td>
-                  <div className="flex flex-wrap gap-1">
-                    {user.phoneVerified ? <Badge tone="green">Telefone verificado</Badge> : <Badge tone="amber">Telefone pendente</Badge>}
-                    {user.twoFactorEnabled && <Badge tone="green">2FA</Badge>}
-                  </div>
-                </Td>
                 <Td className="whitespace-nowrap">{formatDateTime(user.createdAt)}</Td>
                 <Td className="text-right">
                   {!isMe && (

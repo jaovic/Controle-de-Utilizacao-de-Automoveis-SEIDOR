@@ -28,7 +28,7 @@ export default function OpenGraphImage() {
           <div style={{ fontSize: 64, fontWeight: 700 }}>{SITE_NAME}</div>
         </div>
         <div style={{ marginTop: 48, fontSize: 44, fontWeight: 600, lineHeight: 1.2 }}>Controle de utilização dos automóveis da empresa</div>
-        <div style={{ marginTop: 24, fontSize: 28, color: "#a5f3fc" }}>Automóveis · Motoristas · Utilizações · Login com verificação por SMS</div>
+        <div style={{ marginTop: 24, fontSize: 28, color: "#a5f3fc" }}>Automóveis · Motoristas · Utilizações · Perfis de acesso</div>
       </div>
     ),
     size,

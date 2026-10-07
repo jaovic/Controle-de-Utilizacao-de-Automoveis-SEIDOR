@@ -9,18 +9,13 @@ import { z } from "zod";
 import { isStrongPassword, PasswordStrength } from "@/components/PasswordStrength";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
-import { pendingAuth } from "@/lib/pendingAuth";
-import type { User } from "@/lib/types";
+import type { Session } from "@/lib/types";
 
 // Mesmas regras da API, para dar retorno imediato no formulário.
 const schema = z
   .object({
     name: z.string().trim().min(1, "Informe seu nome"),
     email: z.string().email("Informe um e-mail válido"),
-    phone: z
-      .string()
-      .transform((value) => value.replace(/[\s()-]/g, ""))
-      .refine((value) => /^\+[1-9]\d{9,14}$/.test(value), "Use o formato internacional, ex.: +5511999998888"),
     password: z.string().refine(isStrongPassword, "Use uma senha forte: cumpra todos os requisitos abaixo"),
     confirmPassword: z.string(),
   })
@@ -43,12 +38,13 @@ export default function RegisterPage() {
   } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(schema), defaultValues: { password: "" } });
   const password = useWatch({ control, name: "password" }) ?? "";
 
-  async function onSubmit({ name, email, phone, password }: FormOutput) {
+  async function onSubmit({ name, email, password }: FormOutput) {
     setError(null);
     try {
-      const result = await api<{ user: User; devCode?: string }>("/auth/register", { method: "POST", body: { name, email, phone, password } });
-      pendingAuth.setDevCode(result.devCode);
-      router.push(`/verify-phone?email=${encodeURIComponent(result.user.email)}`);
+      // O cadastro já devolve a sessão (cookies): segue direto para o sistema.
+      await api<Session>("/auth/register", { method: "POST", body: { name, email, password } });
+      router.replace("/usages");
+      router.refresh();
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -57,7 +53,7 @@ export default function RegisterPage() {
   return (
     <Card className="p-6">
       <h1 className="text-xl font-semibold text-slate-900">Criar conta</h1>
-      <p className="mt-1 text-sm text-slate-500">Vamos confirmar seu telefone por SMS antes do primeiro acesso.</p>
+      <p className="mt-1 text-sm text-slate-500">Preencha seus dados para acessar o controle da frota.</p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4" noValidate>
         {error && <Alert tone="error">{error}</Alert>}
@@ -66,9 +62,6 @@ export default function RegisterPage() {
         </Field>
         <Field label="E-mail" htmlFor="email" error={errors.email?.message}>
           <Input id="email" type="email" autoComplete="email" {...register("email")} />
-        </Field>
-        <Field label="Celular" htmlFor="phone" error={errors.phone?.message} hint="Com código do país e DDD, ex.: +5511999998888">
-          <Input id="phone" type="tel" autoComplete="tel" placeholder="+5511999998888" {...register("phone")} />
         </Field>
         <Field label="Senha" htmlFor="password" error={errors.password?.message} hint={password ? undefined : "Use uma senha forte"}>
           <Input id="password" type="password" autoComplete="new-password" {...register("password")} />

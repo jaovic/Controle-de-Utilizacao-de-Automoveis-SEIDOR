@@ -15,16 +15,8 @@ export class ApiError extends Error {
   }
 }
 
-// Rotas em que um 401 é resposta de negócio (credenciais/código), não sessão expirada.
-const NO_REFRESH_PATHS = [
-  "/auth/login",
-  "/auth/login/verify",
-  "/auth/register",
-  "/auth/verify-phone",
-  "/auth/resend-code",
-  "/auth/refresh",
-  "/auth/logout",
-];
+// Rotas em que um 401 é resposta de negócio (credenciais inválidas), não sessão expirada.
+const NO_REFRESH_PATHS = ["/auth/login", "/auth/register", "/auth/refresh", "/auth/logout"];
 
 let refreshInFlight: Promise<boolean> | null = null;
 

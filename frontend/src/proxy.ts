@@ -1,7 +1,7 @@
 import { decodeJwt } from "jose";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/register", "/verify-phone"];
+const PUBLIC_ROUTES = ["/login", "/register"];
 
 /**
  * Proteção das páginas (roda antes da renderização):

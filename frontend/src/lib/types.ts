@@ -5,9 +5,6 @@ export type User = {
   name: string;
   email: string;
   role: Role;
-  phone: string;
-  phoneVerified: boolean;
-  twoFactorEnabled: boolean;
   createdAt: string;
 };
 
@@ -17,8 +14,6 @@ export type Session = {
   expiresIn: number;
   user: User;
 };
-
-export type LoginResponse = Session | { requiresTwoFactor: true; challengeToken: string; devCode?: string };
 
 export type Car = {
   id: string;

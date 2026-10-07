@@ -3,7 +3,7 @@ export const SITE_NAME = "TTP Frota";
 export const SITE_TITLE = "TTP Frota · Controle de utilização de automóveis";
 export const SITE_DESCRIPTION =
   "Controle a frota da empresa: cadastro de automóveis e motoristas e registro de quem está usando cada carro, " +
-  "com login seguro, verificação por SMS e perfis de acesso.";
+  "com login seguro e perfis de acesso.";
 export const BRAND_COLOR = "#0e7490";
 
 /** URL pública do site: definida pela Vercel no build, ou SITE_URL, ou localhost. */

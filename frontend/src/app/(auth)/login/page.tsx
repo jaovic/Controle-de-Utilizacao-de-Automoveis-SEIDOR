@@ -7,9 +7,8 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
-import { api, ApiError, errorMessage } from "@/lib/api";
-import { pendingAuth } from "@/lib/pendingAuth";
-import type { LoginResponse } from "@/lib/types";
+import { api, errorMessage } from "@/lib/api";
+import type { Session } from "@/lib/types";
 
 const schema = z.object({
   email: z.string().email("Informe um e-mail válido"),
@@ -35,23 +34,10 @@ export default function LoginPage() {
   async function onSubmit(data: FormData) {
     setError(null);
     try {
-      const result = await api<LoginResponse>("/auth/login", { method: "POST", body: data });
-
-      if ("requiresTwoFactor" in result) {
-        pendingAuth.setChallenge({ challengeToken: result.challengeToken, email: data.email });
-        pendingAuth.setDevCode(result.devCode);
-        router.push(`/login/2fa?next=${encodeURIComponent(next)}`);
-        return;
-      }
-
+      await api<Session>("/auth/login", { method: "POST", body: data });
       router.replace(next);
       router.refresh();
     } catch (err) {
-      if (err instanceof ApiError && err.code === "PHONE_NOT_VERIFIED") {
-        pendingAuth.setDevCode(err.details?.devCode as string | undefined);
-        router.push(`/verify-phone?email=${encodeURIComponent(data.email)}`);
-        return;
-      }
       setError(errorMessage(err));
     }
   }
