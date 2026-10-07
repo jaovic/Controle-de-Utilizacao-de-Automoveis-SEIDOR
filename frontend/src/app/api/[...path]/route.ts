@@ -12,8 +12,30 @@ const FORWARDED_REQUEST_HEADERS = ["accept", "authorization", "content-type", "c
 // Cabeçalhos que não podem ser repassados como vieram (o fetch já descompactou o corpo).
 const SKIPPED_RESPONSE_HEADERS = ["connection", "content-encoding", "content-length", "transfer-encoding", "set-cookie"];
 
+/**
+ * Normaliza BACKEND_URL para evitar erros comuns de configuração no painel
+ * (aspas, espaços, barra no final ou falta do protocolo).
+ */
+function resolveBackendUrl() {
+  const raw = (process.env.BACKEND_URL ?? "http://localhost:3333").trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    return new URL(withProtocol);
+  } catch {
+    return null;
+  }
+}
+
 async function proxyToBackend(request: NextRequest, context: { params: Promise<{ path: string[] }> }) {
-  const backendUrl = process.env.BACKEND_URL ?? "http://localhost:3333";
+  const backendUrl = resolveBackendUrl();
+  if (!backendUrl) {
+    console.error("BACKEND_URL inválida:", process.env.BACKEND_URL);
+    return Response.json(
+      { error: { message: "Configuração inválida do servidor (BACKEND_URL).", code: "BACKEND_MISCONFIGURED" } },
+      { status: 500 },
+    );
+  }
+
   const { path } = await context.params;
   const target = new URL(`/api/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`, backendUrl);
 
@@ -37,7 +59,8 @@ async function proxyToBackend(request: NextRequest, context: { params: Promise<{
       redirect: "manual",
       cache: "no-store",
     });
-  } catch {
+  } catch (error) {
+    console.error(`Falha ao chamar a API em ${target.origin}:`, error);
     return Response.json(
       { error: { message: "Não foi possível conectar à API. Tente novamente em instantes.", code: "BACKEND_UNAVAILABLE" } },
       { status: 502 },
