@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "TTP Completo - Frota com autenticação",
-    "description": "Rode a coleção inteira em ordem (Run collection) para executar o fluxo completo: login do admin, cadastro de um usuário com verificação do telefone, 2FA no login, permissões por role e o CRUD de automóveis, motoristas e utilizações. Tokens, ids e códigos são salvos automaticamente em variáveis da coleção.\n\nOs códigos SMS são lidos do campo `devCode`, que só existe com a API em modo local (SMS_PROVIDER=console). As rotas de login têm rate limit próprio (10/min por IP): espere 1 minuto entre duas execuções completas.",
+    "description": "Rode a coleção inteira em ordem (Run collection) para executar o fluxo completo: login do admin, cadastro de um usuário (que já devolve a sessão), refresh, permissões por role e o CRUD de automóveis, motoristas e utilizações. Tokens e ids são salvos automaticamente em variáveis da coleção.\n\nAs rotas de cadastro e login têm rate limit próprio (10/min por IP): espere 1 minuto entre duas execuções completas.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -41,14 +41,6 @@
     },
     {
       "key": "userId",
-      "value": ""
-    },
-    {
-      "key": "devCode",
-      "value": ""
-    },
-    {
-      "key": "challengeToken",
       "value": ""
     },
     {
@@ -182,9 +174,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 201', () => pm.response.to.have.status(201));",
-                  "pm.test('telefone ainda não verificado', () => pm.expect(pm.response.json().user.phoneVerified).to.be.false);",
-                  "if (pm.response.code < 300) pm.collectionVariables.set('devCode', pm.response.json().devCode);",
-                  "if (pm.response.code < 300) pm.collectionVariables.set('userId', pm.response.json().user.id);"
+                  "pm.test('já devolve a sessão', () => pm.expect(pm.response.json().accessToken).to.be.a('string'));",
+                  "if (pm.response.code < 300) pm.collectionVariables.set('userId', pm.response.json().user.id);",
+                  "if (pm.response.code < 300) pm.collectionVariables.set('userToken', pm.response.json().accessToken);",
+                  "if (pm.response.code < 300) pm.collectionVariables.set('userRefreshToken', pm.response.json().refreshToken);"
                 ]
               }
             }
@@ -202,7 +195,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Usuário Postman\",\n  \"email\": \"{{userEmail}}\",\n  \"phone\": \"+5511988887777\",\n  \"password\": \"Senha@123\"\n}",
+              "raw": "{\n  \"name\": \"Usuário Postman\",\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -219,103 +212,8 @@
                 "auth",
                 "register"
               ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Login antes de verificar o telefone (403)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 403', () => pm.response.to.have.status(403));",
-                  "pm.test('code PHONE_NOT_VERIFIED', () => pm.expect(pm.response.json().error.code).to.eql('PHONE_NOT_VERIFIED'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "noauth"
             },
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Verificar telefone",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "noauth"
-            },
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"code\": \"{{devCode}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/verify-phone",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "verify-phone"
-              ]
-            },
-            "description": "Usa o código do cadastro (devCode em ambiente local; em produção, o código recebido por SMS)."
+            "description": "Cria a conta com role USER e já devolve os tokens (sessão aberta)."
           },
           "response": []
         },
@@ -453,161 +351,6 @@
                 "api",
                 "auth",
                 "refresh"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Ativar 2FA no login",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('2FA ativo', () => pm.expect(pm.response.json().twoFactorEnabled).to.be.true);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PATCH",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{userToken}}",
-                  "type": "string"
-                }
-              ]
-            },
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"password\": \"Senha@123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/me/two-factor",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "me",
-                "two-factor"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Login com 2FA (envia SMS)",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('exige o código', () => pm.expect(pm.response.json().requiresTwoFactor).to.be.true);",
-                  "if (pm.response.code < 300) pm.collectionVariables.set('challengeToken', pm.response.json().challengeToken);",
-                  "if (pm.response.code < 300) pm.collectionVariables.set('devCode', pm.response.json().devCode);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "noauth"
-            },
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login"
-              ]
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Login com 2FA - validar código",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "if (pm.response.code < 300) pm.collectionVariables.set('userToken', pm.response.json().accessToken);"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "POST",
-            "auth": {
-              "type": "noauth"
-            },
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"challengeToken\": \"{{challengeToken}}\",\n  \"code\": \"{{devCode}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "url": {
-              "raw": "{{baseUrl}}/api/auth/login/verify",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "auth",
-                "login",
-                "verify"
               ]
             }
           },

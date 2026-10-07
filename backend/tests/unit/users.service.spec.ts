@@ -17,7 +17,6 @@ describe('UsersService', () => {
     const [user] = await service.list();
 
     expect(user).not.toHaveProperty('passwordHash');
-    expect(user).not.toHaveProperty('twoFactorCode');
   });
 
   it('promove um usuário a ADMIN', async () => {
