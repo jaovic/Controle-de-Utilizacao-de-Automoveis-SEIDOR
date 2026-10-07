@@ -10,34 +10,47 @@ import "react-day-picker/style.css";
 import { Select } from "./ui";
 
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
-const MINUTES = Array.from({ length: 12 }, (_, index) => index * 5);
+const MINUTES = Array.from({ length: 60 }, (_, minute) => minute);
 const pad = (value: number) => String(value).padStart(2, "0");
 
-/** Arredonda para baixo no múltiplo de 5 minutos (os minutos são escolhidos de 5 em 5). */
-export function roundDownTo5Minutes(date: Date) {
-  const rounded = new Date(date);
-  rounded.setMinutes(Math.floor(rounded.getMinutes() / 5) * 5, 0, 0);
-  return rounded;
+/** Zera segundos e milissegundos (os horários são escolhidos minuto a minuto). */
+export function startOfMinute(date: Date) {
+  const result = new Date(date);
+  result.setSeconds(0, 0);
+  return result;
 }
+
+/** Primeiro minuto cheio igual ou posterior à data (ex.: 22:47:30 → 22:48). */
+function ceilToMinute(date: Date) {
+  const floor = startOfMinute(date);
+  return floor.getTime() === date.getTime() ? floor : new Date(floor.getTime() + 60_000);
+}
+
+const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
 
 /**
  * Data em um calendário (popover) e hora em dois selects (hora / minuto), em vez do
  * <input type="datetime-local"> nativo, que é difícil de usar e muda conforme o navegador.
+ * `minDate` e `maxDate` limitam a escolha: dias, horas e minutos fora do intervalo ficam desabilitados.
  */
 export function DateTimePicker({
   value,
   onChange,
+  minDate,
   maxDate,
   idPrefix,
 }: {
   value: Date;
   onChange: (value: Date) => void;
-  /** dias depois desta data ficam desabilitados no calendário */
+  minDate?: Date;
   maxDate?: Date;
   idPrefix: string;
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const min = minDate ? ceilToMinute(minDate) : undefined;
+  const max = maxDate ? startOfMinute(maxDate) : undefined;
 
   // Fecha o calendário ao clicar fora ou apertar Esc.
   useEffect(() => {
@@ -62,15 +75,20 @@ export function DateTimePicker({
   const update = (changes: { day?: Date; hour?: number; minute?: number }) => {
     const next = new Date(changes.day ?? value);
     next.setHours(changes.hour ?? value.getHours(), changes.minute ?? value.getMinutes(), 0, 0);
-    // Ao escolher hoje com um horário que ainda não chegou, ajusta para o horário máximo permitido.
-    onChange(maxDate && next > maxDate ? roundDownTo5Minutes(maxDate) : next);
+    // Se a combinação escolhida sair do intervalo permitido, ajusta para o limite mais próximo.
+    if (max && next > max) onChange(max);
+    else if (min && next < min) onChange(min);
+    else onChange(next);
   };
 
-  // No dia limite (hoje), horas e minutos que ainda não chegaram ficam desabilitados.
-  const isMaxDay = maxDate !== undefined && value.toDateString() === maxDate.toDateString();
-  const isHourDisabled = (hour: number) => isMaxDay && hour > maxDate.getHours();
+  const isMinDay = min !== undefined && sameDay(value, min);
+  const isMaxDay = max !== undefined && sameDay(value, max);
+  const isHourDisabled = (hour: number) => (isMaxDay && hour > max.getHours()) || (isMinDay && hour < min.getHours());
   const isMinuteDisabled = (minute: number) =>
-    isMaxDay && value.getHours() === maxDate.getHours() && minute > maxDate.getMinutes();
+    (isMaxDay && value.getHours() === max.getHours() && minute > max.getMinutes()) ||
+    (isMinDay && value.getHours() === min.getHours() && minute < min.getMinutes());
+
+  const disabledDays = [...(min ? [{ before: startOfDay(min) }] : []), ...(max ? [{ after: max }] : [])];
 
   return (
     <div className="grid grid-cols-[1fr_auto] gap-2">
@@ -99,8 +117,9 @@ export function DateTimePicker({
               required
               selected={value}
               defaultMonth={value}
-              disabled={maxDate ? { after: maxDate } : undefined}
-              endMonth={maxDate}
+              disabled={disabledDays}
+              startMonth={min}
+              endMonth={max}
               onSelect={(day) => {
                 if (day) update({ day });
                 setOpen(false);
@@ -112,12 +131,7 @@ export function DateTimePicker({
 
       <div className="flex items-center gap-1">
         <Clock className="size-4 text-slate-400" aria-hidden />
-        <Select
-          aria-label="Hora"
-          className="w-[4.5rem]"
-          value={value.getHours()}
-          onChange={(event) => update({ hour: Number(event.target.value) })}
-        >
+        <Select aria-label="Hora" className="w-[4.5rem]" value={value.getHours()} onChange={(event) => update({ hour: Number(event.target.value) })}>
           {HOURS.map((hour) => (
             <option key={hour} value={hour} disabled={isHourDisabled(hour)}>
               {pad(hour)}

@@ -7,8 +7,9 @@ import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { Alert, Badge, Button, ConfirmModal, Field, Modal, PageHeader, Select, Spinner, Table, Td, Textarea } from "@/components/ui";
-import { DateTimePicker, roundDownTo5Minutes } from "@/components/DateTimePicker";
+import { startOfMinute } from "@/components/DateTimePicker";
+import { NowOrDateTimeField } from "@/components/NowOrDateTimeField";
+import { Alert, Badge, Button, Field, Modal, PageHeader, Select, Spinner, Table, Td, Textarea } from "@/components/ui";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { api } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
@@ -28,13 +29,6 @@ export default function UsagesPage() {
   const usages = useQuery({
     queryKey: ["usages", active],
     queryFn: () => api<Usage[]>(`/usages${active ? `?active=${active}` : ""}`),
-  });
-
-  const finish = useApiMutation({
-    mutationFn: (usage: Usage) => api(`/usages/${usage.id}/finish`, { method: "PATCH", body: {} }),
-    invalidate: [["usages"]],
-    successMessage: "Utilização finalizada.",
-    onSuccess: () => setFinishing(null),
   });
 
   return (
@@ -100,15 +94,7 @@ export default function UsagesPage() {
 
       {creating && <StartUsageModal onClose={() => setCreating(false)} />}
 
-      <ConfirmModal
-        open={finishing !== null}
-        title="Finalizar utilização"
-        message={`Registrar agora a devolução do automóvel ${finishing?.car.plate} por ${finishing?.driver.name}?`}
-        confirmLabel="Finalizar"
-        loading={finish.isPending}
-        onConfirm={() => finishing && finish.mutate(finishing)}
-        onClose={() => setFinishing(null)}
-      />
+      {finishing && <FinishUsageModal usage={finishing} onClose={() => setFinishing(null)} />}
     </>
   );
 }
@@ -134,9 +120,8 @@ function StartUsageModal({ onClose }: { onClose: () => void }) {
     formState: { errors },
   } = useForm<StartForm>({ resolver: zodResolver(startSchema) });
 
-  // Na maioria das vezes a utilização começa agora; data e hora só aparecem se o usuário escolher.
   const [startsNow, setStartsNow] = useState(true);
-  const [startedAt, setStartedAt] = useState(() => roundDownTo5Minutes(new Date()));
+  const [startedAt, setStartedAt] = useState(() => startOfMinute(new Date()));
   const startIsInFuture = !startsNow && startedAt > new Date();
 
   const start = useApiMutation({
@@ -184,35 +169,16 @@ function StartUsageModal({ onClose }: { onClose: () => void }) {
           <Field label="Motivo" htmlFor="reason" error={errors.reason?.message}>
             <Textarea id="reason" placeholder="Ex.: visita a cliente" {...register("reason")} />
           </Field>
-          <fieldset className="space-y-2">
-            <legend className="mb-1.5 text-sm font-medium text-slate-700">Início</legend>
-            <div className="grid grid-cols-2 rounded-lg border border-slate-200 bg-slate-50 p-1" role="radiogroup">
-              {[
-                { now: true, label: "Agora" },
-                { now: false, label: "Outra data e hora" },
-              ].map((option) => (
-                <button
-                  key={option.label}
-                  type="button"
-                  role="radio"
-                  aria-checked={startsNow === option.now}
-                  onClick={() => setStartsNow(option.now)}
-                  className={clsx(
-                    "rounded-md py-1.5 text-sm font-medium transition-colors",
-                    startsNow === option.now ? "bg-white text-brand-700 shadow-sm" : "text-slate-500 hover:text-slate-700",
-                  )}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-            {!startsNow && (
-              <>
-                <DateTimePicker idPrefix="startedAt" value={startedAt} onChange={setStartedAt} maxDate={new Date()} />
-                {startIsInFuture && <p className="text-xs text-red-600">O início não pode estar no futuro.</p>}
-              </>
-            )}
-          </fieldset>
+          <NowOrDateTimeField
+            label="Início"
+            idPrefix="startedAt"
+            isNow={startsNow}
+            onIsNowChange={setStartsNow}
+            value={startedAt}
+            onChange={setStartedAt}
+            maxDate={new Date()}
+            error={startIsInFuture ? "O início não pode estar no futuro." : undefined}
+          />
           <div className="flex justify-end gap-2 pt-2">
             <Button type="button" variant="secondary" onClick={onClose}>
               Cancelar
@@ -223,6 +189,64 @@ function StartUsageModal({ onClose }: { onClose: () => void }) {
           </div>
         </form>
       )}
+    </Modal>
+  );
+}
+
+/** Finaliza a utilização agora ou em outra data e hora (entre o início e o momento atual). */
+function FinishUsageModal({ usage, onClose }: { usage: Usage; onClose: () => void }) {
+  const startedAt = new Date(usage.startedAt);
+  const [endsNow, setEndsNow] = useState(true);
+  // Começa no horário atual, mas nunca antes do início (caso a utilização tenha começado neste minuto).
+  const [endedAt, setEndedAt] = useState(() => {
+    const now = startOfMinute(new Date());
+    return now < startedAt ? new Date(startedAt) : now;
+  });
+
+  const now = new Date();
+  const endError = endsNow
+    ? undefined
+    : endedAt < startedAt
+      ? "O término não pode ser anterior ao início."
+      : endedAt > now
+        ? "O término não pode estar no futuro."
+        : undefined;
+
+  const finish = useApiMutation({
+    mutationFn: () =>
+      api(`/usages/${usage.id}/finish`, { method: "PATCH", body: endsNow ? {} : { endedAt: endedAt.toISOString() } }),
+    invalidate: [["usages"]],
+    successMessage: "Utilização finalizada.",
+    onSuccess: onClose,
+  });
+
+  return (
+    <Modal open title="Finalizar utilização" onClose={onClose}>
+      <div className="space-y-4">
+        <div className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <span className="font-mono font-medium text-slate-900">{usage.car.plate}</span> com {usage.driver.name}
+          <span className="block text-xs text-slate-500">Início: {formatDateTime(usage.startedAt)}</span>
+        </div>
+        <NowOrDateTimeField
+          label="Término"
+          idPrefix="endedAt"
+          isNow={endsNow}
+          onIsNowChange={setEndsNow}
+          value={endedAt}
+          onChange={setEndedAt}
+          minDate={startedAt}
+          maxDate={now}
+          error={endError}
+        />
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button onClick={() => !endError && finish.mutate()} loading={finish.isPending} disabled={Boolean(endError)}>
+            Finalizar
+          </Button>
+        </div>
+      </div>
     </Modal>
   );
 }

@@ -59,7 +59,7 @@ npm run dev                                  # http://localhost:3000
 ### Testes
 
 ```bash
-cd backend && npm test     # 76 testes (unitários + HTTP), sem precisar de banco
+cd backend && npm test     # 77 testes (unitários + HTTP), sem precisar de banco
 cd frontend && npm run lint && npm run build
 ```
 
@@ -69,7 +69,7 @@ cd frontend && npm run lint && npm run build
 
 - **Automóveis:** cadastro (placa no padrão antigo ou Mercosul), edição, exclusão e listagem com filtro por cor e marca. O filtro busca por trecho do texto ("pra" encontra "Prata") e é aplicado enquanto se digita.
 - **Motoristas:** cadastro, edição, exclusão e listagem com filtro por nome.
-- **Utilizações:** iniciar (automóvel, motorista, motivo e início "agora" ou em data e hora escolhidas), finalizar e listar com o nome do motorista e os dados do automóvel, filtrando por em andamento ou finalizadas.
+- **Utilizações:** iniciar (automóvel, motorista, motivo e início "agora" ou em outra data e hora), finalizar (término "agora" ou em outra data e hora, nunca antes do início nem no futuro) e listar com o nome do motorista e os dados do automóvel, filtrando por em andamento ou finalizadas.
 - **Histórico preservado:** automóveis e motoristas com utilizações registradas não podem ser excluídos.
 
 ## Autenticação
