@@ -48,7 +48,11 @@ export class UsagesService {
     if (!usage) throw new NotFoundError('Utilização não encontrada');
     if (usage.endedAt) throw new ConflictError('Esta utilização já foi finalizada');
 
-    const endDate = endedAt ?? this.now();
+    const now = this.now();
+    const endDate = endedAt ?? now;
+    if (endDate > now) {
+      throw new AppError('A data de término não pode estar no futuro');
+    }
     if (endDate < usage.startedAt) {
       throw new AppError('A data de término não pode ser anterior à data de início');
     }

@@ -245,7 +245,7 @@ export const openApiDocument = {
       patch: {
         tags: ['Utilizações'],
         summary: 'Finaliza uma utilização',
-        description: 'Registra a data de término (padrão: agora). Não pode ser anterior à data de início.',
+        description: 'Registra a data de término (padrão: agora). Não pode ser anterior à data de início nem estar no futuro.',
         requestBody: { required: false, content: json(ref('FinishUsageInput')) },
         responses: { 200: response('Utilização finalizada', ref('Usage')), 400: errors[400], 404: errors[404], 409: errors[409] },
       },

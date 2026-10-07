@@ -121,6 +121,17 @@ describe('UsagesService', () => {
       expect(usages.finish).not.toHaveBeenCalled();
     });
 
+    it('rejeita data de término no futuro', async () => {
+      const usage = makeUsage();
+      usages.findById.mockResolvedValue(usage);
+
+      await expect(service.finish(usage.id, { endedAt: new Date('2026-10-06T13:00:00Z') })).rejects.toMatchObject({
+        statusCode: 400,
+        message: 'A data de término não pode estar no futuro',
+      });
+      expect(usages.finish).not.toHaveBeenCalled();
+    });
+
     it('rejeita data de término anterior à data de início', async () => {
       const usage = makeUsage({ startedAt: new Date('2026-10-01T08:00:00Z') });
       usages.findById.mockResolvedValue(usage);
