@@ -26,6 +26,8 @@ const envSchema = z
     TWILIO_ACCOUNT_SID: z.string().optional(),
     TWILIO_AUTH_TOKEN: z.string().optional(),
     TWILIO_FROM_NUMBER: z.string().optional(),
+    /** modo demonstração: mostra o código na tela quando a Twilio recusa o envio por limitação da conta */
+    SMS_DEMO_FALLBACK: booleanString.default('false'),
   })
   .refine(
     (env) =>

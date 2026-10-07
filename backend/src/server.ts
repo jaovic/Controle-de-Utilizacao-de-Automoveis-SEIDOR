@@ -21,7 +21,7 @@ const app = createApp({
 const server = app.listen(env.PORT, () => {
   console.log(`API rodando em http://localhost:${env.PORT}`);
   console.log(`Documentação em http://localhost:${env.PORT}/docs`);
-  console.log(`SMS: ${env.SMS_PROVIDER === 'console' ? 'modo console (códigos no log)' : 'Twilio'}`);
+  console.log(`SMS: ${env.SMS_PROVIDER === 'console' ? 'modo console (códigos no log)' : 'Twilio'}${env.SMS_PROVIDER === 'twilio' && env.SMS_DEMO_FALLBACK ? ' com modo demonstração' : ''}`);
 });
 
 async function shutdown(signal: string) {

@@ -14,8 +14,8 @@ describe('TwoFactorCodeService', () => {
   let sms: jest.Mocked<SmsProvider>;
   let service: TwoFactorCodeService;
 
-  const createService = (exposesCodes: boolean) => {
-    sms = { send: jest.fn(), exposesCodes };
+  const createService = (exposeCode: boolean) => {
+    sms = { send: jest.fn().mockResolvedValue({ exposeCode }) };
     service = new TwoFactorCodeService(users, sms, () => NOW);
   };
 
@@ -44,7 +44,7 @@ describe('TwoFactorCodeService', () => {
       });
     });
 
-    it('devolve o código quando o provider é o de desenvolvimento', async () => {
+    it('devolve o código quando o provider permite exibi-lo na tela', async () => {
       createService(true);
 
       const code = await service.issue(makeUser(), 'PHONE_VERIFICATION');

@@ -18,7 +18,6 @@ const KNOWN_ERRORS: Record<number, { message: string; status: number }> = {
 };
 
 export class TwilioSmsProvider implements SmsProvider {
-  readonly exposesCodes = false;
   private readonly client: ReturnType<typeof twilio>;
 
   constructor(
@@ -32,6 +31,7 @@ export class TwilioSmsProvider implements SmsProvider {
   async send(to: string, message: string) {
     try {
       await this.client.messages.create({ to, from: this.from, body: message });
+      return { exposeCode: false };
     } catch (error) {
       const code = (error as { code?: number }).code;
       console.error(`Falha ao enviar SMS pela Twilio (código ${code ?? 'desconhecido'}):`, error);

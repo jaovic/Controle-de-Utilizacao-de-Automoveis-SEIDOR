@@ -27,7 +27,7 @@ export class TwoFactorCodeService {
     private readonly now: () => Date = () => new Date(),
   ) {}
 
-  /** Retorna o código apenas quando o provider é o de desenvolvimento (para exibir localmente). */
+  /** Retorna o código apenas quando ele pode aparecer na tela (desenvolvimento ou modo demonstração). */
   async issue(user: User, purpose: TwoFactorPurpose): Promise<string | undefined> {
     const now = this.now().getTime();
 
@@ -46,9 +46,9 @@ export class TwoFactorCodeService {
       twoFactorCodeExpiresAt: new Date(now + CODE_TTL_MS),
       twoFactorAttempts: 0,
     });
-    await this.smsProvider.send(user.phone, MESSAGES[purpose](code));
+    const { exposeCode } = await this.smsProvider.send(user.phone, MESSAGES[purpose](code));
 
-    return this.smsProvider.exposesCodes ? code : undefined;
+    return exposeCode ? code : undefined;
   }
 
   /** true se existe um código desse tipo ainda válido (evita reenviar SMS desnecessariamente). */

@@ -1,8 +1,11 @@
-export interface SmsProvider {
-  send(to: string, message: string): Promise<void>;
+export type SmsSendResult = {
   /**
-   * true apenas no provider de desenvolvimento: permite devolver o código na resposta da API
-   * para testar localmente sem enviar SMS de verdade.
+   * true quando o código pode ser devolvido na resposta da API para aparecer na tela:
+   * no provider de desenvolvimento ou no modo demonstração, quando o SMS não pôde ser entregue.
    */
-  readonly exposesCodes: boolean;
+  exposeCode: boolean;
+};
+
+export interface SmsProvider {
+  send(to: string, message: string): Promise<SmsSendResult>;
 }
