@@ -6,14 +6,11 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import { type AppConfig, defaultAppConfig } from './config/appConfig';
 import { openApiDocument } from './docs/openapi';
-import { ConsoleSmsProvider } from './infra/sms/ConsoleSmsProvider';
-import type { SmsProvider } from './infra/sms/SmsProvider';
 import { AuthController } from './modules/auth/auth.controller';
 import { authRoutes } from './modules/auth/auth.routes';
 import { AuthService } from './modules/auth/auth.service';
 import { PrismaRefreshTokensRepository } from './modules/auth/refreshTokens.repository';
 import { TokenService } from './modules/auth/token.service';
-import { TwoFactorCodeService } from './modules/auth/twoFactorCode.service';
 import { CarsController } from './modules/cars/cars.controller';
 import { PrismaCarsRepository } from './modules/cars/cars.repository';
 import { carsRoutes } from './modules/cars/cars.routes';
@@ -37,14 +34,13 @@ import { createRateLimiter, createUserRateLimiter } from './shared/middlewares/r
 export type AppDependencies = {
   prisma: PrismaClient;
   config?: AppConfig;
-  smsProvider?: SmsProvider;
 };
 
 /**
- * Monta a aplicação Express (composition root). As dependências externas (banco, SMS, config)
- * chegam por parâmetro, o que permite subir a app nos testes sem banco nem Twilio.
+ * Monta a aplicação Express (composition root). As dependências externas (banco e config)
+ * chegam por parâmetro, o que permite subir a app nos testes sem banco.
  */
-export function createApp({ prisma, config = defaultAppConfig, smsProvider = new ConsoleSmsProvider() }: AppDependencies) {
+export function createApp({ prisma, config = defaultAppConfig }: AppDependencies) {
   const tokenService = new TokenService(config.jwtSecret, config.accessTokenTtlMinutes);
 
   const carsRepository = new PrismaCarsRepository(prisma);
@@ -57,7 +53,6 @@ export function createApp({ prisma, config = defaultAppConfig, smsProvider = new
     usersRepository,
     refreshTokensRepository,
     tokenService,
-    new TwoFactorCodeService(usersRepository, smsProvider),
     config.refreshTokenTtlDays,
   );
 

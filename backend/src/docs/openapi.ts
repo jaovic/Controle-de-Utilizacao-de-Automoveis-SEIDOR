@@ -30,14 +30,11 @@ export const openApiDocument = {
       'e um motorista que já esteja utilizando um automóvel não pode utilizar outro ao mesmo tempo.\n\n' +
       '**Rate limit:** todas as rotas são limitadas por IP (padrão: 100 requisições por minuto). ' +
       'Ao exceder, a API responde `429` com os headers `RateLimit` e `Retry-After`. ' +
-      'As rotas de login e códigos SMS têm um limite mais rígido, e as rotas autenticadas também são limitadas ' +
+      'As rotas de cadastro e login têm um limite mais rígido, e as rotas autenticadas também são limitadas ' +
       'por usuário (padrão: 60 por minuto), identificado pelo token.\n\n' +
-      '**Autenticação:** faça login em `POST /api/auth/login`, copie o `accessToken` e clique em **Authorize**. ' +
-      'O frontend usa os mesmos tokens via cookies httpOnly.\n\n' +
-      '- O cadastro exige confirmar o telefone por SMS (`POST /api/auth/verify-phone`) antes do primeiro login.\n' +
-      '- Se o usuário ativar o 2FA (`PATCH /api/auth/me/two-factor`), todo login devolve um `challengeToken` ' +
-      'e exige o código enviado por SMS em `POST /api/auth/login/verify`.\n' +
-      '- Em ambiente local (`SMS_PROVIDER=console`) o código aparece no log da API e no campo `devCode` das respostas.\n\n' +
+      '**Autenticação:** faça login em `POST /api/auth/login` (ou cadastre-se em `POST /api/auth/register`, que já ' +
+      'devolve a sessão), copie o `accessToken` e clique em **Authorize**. O frontend usa os mesmos tokens via ' +
+      'cookies httpOnly. O access token vale 15 minutos e é renovado em `POST /api/auth/refresh`.\n\n' +
       '**Roles:** `USER` consulta tudo e inicia/finaliza utilizações; `ADMIN` também cadastra, altera e exclui ' +
       'automóveis e motoristas e gerencia usuários.',
   },
@@ -65,39 +62,14 @@ export const openApiDocument = {
       post: {
         tags: ['Auth'],
         security: [],
-        summary: 'Cria uma conta (role USER) e envia o código de verificação por SMS',
+        summary: 'Cria uma conta (role USER) e já abre a sessão',
+        description: 'Exige senha forte. Devolve os tokens no corpo e também define os cookies de sessão.',
         requestBody: { required: true, content: json(ref('RegisterInput')) },
         responses: {
-          201: response('Conta criada; telefone ainda não verificado', ref('RegisterResponse')),
+          201: response('Conta criada e sessão aberta', ref('Session')),
           400: errors[400],
           409: response('E-mail já cadastrado', ref('Error')),
         },
-      },
-    },
-    '/api/auth/verify-phone': {
-      post: {
-        tags: ['Auth'],
-        security: [],
-        summary: 'Confirma o telefone com o código do cadastro (obrigatório antes do primeiro login)',
-        requestBody: {
-          required: true,
-          content: json({ type: 'object', required: ['email', 'code'], properties: { email: { type: 'string' }, code: { type: 'string', example: '123456' } } }),
-        },
-        responses: {
-          200: response('Telefone verificado', { type: 'object', properties: { message: { type: 'string' }, user: ref('User') } }),
-          400: response('Código inválido, expirado ou inexistente', ref('Error')),
-          409: response('Telefone já verificado', ref('Error')),
-          429: response('Muitas tentativas inválidas', ref('Error')),
-        },
-      },
-    },
-    '/api/auth/resend-code': {
-      post: {
-        tags: ['Auth'],
-        security: [],
-        summary: 'Reenvia o código de verificação do cadastro',
-        requestBody: { required: true, content: json({ type: 'object', required: ['email'], properties: { email: { type: 'string' } } }) },
-        responses: { 200: response('Resposta neutra (não revela se o e-mail existe)', ref('MessageWithDevCode')) },
       },
     },
     '/api/auth/login': {
@@ -105,10 +77,7 @@ export const openApiDocument = {
         tags: ['Auth'],
         security: [],
         summary: 'Login com e-mail e senha',
-        description:
-          'Sem 2FA: devolve os tokens (e define os cookies). Com 2FA ativo: envia o SMS e devolve ' +
-          '`{ requiresTwoFactor: true, challengeToken }`. Telefone não verificado: 403 `PHONE_NOT_VERIFIED` ' +
-          '(um novo código é enviado automaticamente).',
+        description: 'Devolve os tokens no corpo e também define os cookies de sessão.',
         requestBody: {
           required: true,
           content: json({
@@ -118,25 +87,8 @@ export const openApiDocument = {
           }),
         },
         responses: {
-          200: response('Sessão criada ou 2FA exigido', { oneOf: [ref('Session'), ref('TwoFactorChallenge')] }),
-          401: response('E-mail ou senha inválidos', ref('Error')),
-          403: response('Telefone não verificado (code PHONE_NOT_VERIFIED)', ref('Error')),
-        },
-      },
-    },
-    '/api/auth/login/verify': {
-      post: {
-        tags: ['Auth'],
-        security: [],
-        summary: 'Segunda etapa do login com 2FA: valida o código SMS',
-        requestBody: {
-          required: true,
-          content: json({ type: 'object', required: ['challengeToken', 'code'], properties: { challengeToken: { type: 'string' }, code: { type: 'string', example: '123456' } } }),
-        },
-        responses: {
           200: response('Sessão criada', ref('Session')),
-          400: response('Código inválido ou expirado', ref('Error')),
-          401: response('challengeToken expirado', ref('Error')),
+          401: response('E-mail ou senha inválidos', ref('Error')),
         },
       },
     },
@@ -164,17 +116,6 @@ export const openApiDocument = {
         tags: ['Auth'],
         summary: 'Dados do usuário autenticado',
         responses: { 200: response('Usuário', ref('User')) },
-      },
-    },
-    '/api/auth/me/two-factor': {
-      patch: {
-        tags: ['Auth'],
-        summary: 'Ativa ou desativa o código por SMS em todo login',
-        requestBody: {
-          required: true,
-          content: json({ type: 'object', required: ['enabled', 'password'], properties: { enabled: { type: 'boolean' }, password: { type: 'string' } } }),
-        },
-        responses: { 200: response('Usuário atualizado', ref('User')), 400: response('Senha incorreta', ref('Error')) },
       },
     },
 
@@ -318,11 +259,10 @@ export const openApiDocument = {
     schemas: {
       RegisterInput: {
         type: 'object',
-        required: ['name', 'email', 'phone', 'password'],
+        required: ['name', 'email', 'password'],
         properties: {
           name: { type: 'string', example: 'Maria Souza' },
           email: { type: 'string', example: 'maria@email.com' },
-          phone: { type: 'string', example: '+5511999998888', description: 'Formato internacional (E.164)' },
           password: { type: 'string', example: 'Senha@123', description: 'Senha forte: mínimo 8 caracteres, com maiúscula, minúscula, número e caractere especial' },
         },
       },
@@ -333,22 +273,8 @@ export const openApiDocument = {
           name: { type: 'string' },
           email: { type: 'string' },
           role: { type: 'string', enum: ['ADMIN', 'USER'] },
-          phone: { type: 'string' },
-          phoneVerified: { type: 'boolean' },
-          twoFactorEnabled: { type: 'boolean' },
           createdAt: { type: 'string', format: 'date-time' },
         },
-      },
-      MessageWithDevCode: {
-        type: 'object',
-        properties: {
-          message: { type: 'string' },
-          devCode: { type: 'string', description: 'Somente com SMS_PROVIDER=console (ambiente local)' },
-        },
-      },
-      RegisterResponse: {
-        type: 'object',
-        properties: { message: { type: 'string' }, user: ref('User'), devCode: { type: 'string', description: 'Somente em ambiente local' } },
       },
       Session: {
         type: 'object',
@@ -357,14 +283,6 @@ export const openApiDocument = {
           refreshToken: { type: 'string' },
           expiresIn: { type: 'integer', example: 900, description: 'Validade do access token em segundos' },
           user: ref('User'),
-        },
-      },
-      TwoFactorChallenge: {
-        type: 'object',
-        properties: {
-          requiresTwoFactor: { type: 'boolean', example: true },
-          challengeToken: { type: 'string', description: 'Válido por 5 minutos' },
-          devCode: { type: 'string', description: 'Somente em ambiente local' },
         },
       },
       Error: {

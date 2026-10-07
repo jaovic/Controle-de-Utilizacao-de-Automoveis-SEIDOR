@@ -1,11 +1,9 @@
 import { env } from './config/env';
 import { createApp } from './app';
 import { prisma } from './infra/prisma';
-import { createSmsProvider } from './infra/sms';
 
 const app = createApp({
   prisma,
-  smsProvider: createSmsProvider(),
   config: {
     jwtSecret: env.JWT_SECRET,
     accessTokenTtlMinutes: env.ACCESS_TOKEN_TTL_MINUTES,
@@ -21,7 +19,6 @@ const app = createApp({
 const server = app.listen(env.PORT, () => {
   console.log(`API rodando em http://localhost:${env.PORT}`);
   console.log(`Documentação em http://localhost:${env.PORT}/docs`);
-  console.log(`SMS: ${env.SMS_PROVIDER === 'console' ? 'modo console (códigos no log)' : 'Twilio'}${env.SMS_PROVIDER === 'twilio' && env.SMS_DEMO_FALLBACK ? ' com modo demonstração' : ''}`);
 });
 
 async function shutdown(signal: string) {

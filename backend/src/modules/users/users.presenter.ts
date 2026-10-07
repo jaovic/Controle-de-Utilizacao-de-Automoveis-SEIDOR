@@ -1,15 +1,12 @@
 import type { User } from '@prisma/client';
 
-/** Representação pública do usuário: nunca expõe hash de senha nem dados do código 2FA. */
+/** Representação pública do usuário: nunca expõe o hash da senha. */
 export function toPublicUser(user: User) {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
     role: user.role,
-    phone: user.phone,
-    phoneVerified: user.phoneVerifiedAt !== null,
-    twoFactorEnabled: user.twoFactorEnabled,
     createdAt: user.createdAt,
   };
 }

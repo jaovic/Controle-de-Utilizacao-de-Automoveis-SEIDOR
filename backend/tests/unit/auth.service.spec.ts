@@ -1,7 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { AuthService } from '../../src/modules/auth/auth.service';
 import { sha256, TokenService } from '../../src/modules/auth/token.service';
-import type { TwoFactorCodeService } from '../../src/modules/auth/twoFactorCode.service';
 import { makeUser, mockRefreshTokensRepository, mockUsersRepository } from '../helpers/factories';
 
 const NOW = new Date('2026-10-07T12:00:00Z');
@@ -10,7 +9,6 @@ const PASSWORD = 'Senha@123';
 describe('AuthService', () => {
   let users: ReturnType<typeof mockUsersRepository>;
   let refreshTokens: ReturnType<typeof mockRefreshTokensRepository>;
-  let codes: jest.Mocked<Pick<TwoFactorCodeService, 'issue' | 'verify' | 'hasPendingCode'>>;
   let tokens: TokenService;
   let service: AuthService;
   let passwordHash: string;
@@ -22,38 +20,26 @@ describe('AuthService', () => {
   beforeEach(() => {
     users = mockUsersRepository();
     refreshTokens = mockRefreshTokensRepository();
-    codes = { issue: jest.fn(), verify: jest.fn(), hasPendingCode: jest.fn().mockReturnValue(false) };
     tokens = new TokenService('test-secret-with-at-least-32-characters!!', 15);
-    service = new AuthService(users, refreshTokens, tokens, codes as unknown as TwoFactorCodeService, 7, () => NOW);
+    service = new AuthService(users, refreshTokens, tokens, 7, () => NOW);
   });
 
   describe('register', () => {
-    const input = { name: 'Maria', email: 'maria@ttp.local', phone: '+5511999998888', password: PASSWORD };
+    const input = { name: 'Maria', email: 'maria@ttp.local', password: PASSWORD };
 
-    it('cria o usuário com a senha em hash e envia o código de verificação', async () => {
-      const user = makeUser({ phoneVerifiedAt: null });
+    it('cria o usuário com a senha em hash e já abre a sessão', async () => {
+      const user = makeUser();
       users.findByEmail.mockResolvedValue(null);
       users.create.mockResolvedValue(user);
-      codes.issue.mockResolvedValue('123456');
 
-      const result = await service.register(input);
+      const session = await service.register(input);
 
       const created = users.create.mock.calls[0][0];
       expect(created.passwordHash).not.toBe(PASSWORD);
       expect(await bcrypt.compare(PASSWORD, created.passwordHash)).toBe(true);
-      expect(codes.issue).toHaveBeenCalledWith(user, 'PHONE_VERIFICATION');
-      expect(result.devCode).toBe('123456');
-      expect(result.user).not.toHaveProperty('passwordHash');
-    });
-
-    it('desfaz o cadastro se o SMS não puder ser enviado', async () => {
-      const user = makeUser({ phoneVerifiedAt: null });
-      users.findByEmail.mockResolvedValue(null);
-      users.create.mockResolvedValue(user);
-      codes.issue.mockRejectedValue(new Error('SMS_FAILED'));
-
-      await expect(service.register(input)).rejects.toThrow('SMS_FAILED');
-      expect(users.delete).toHaveBeenCalledWith(user.id);
+      expect(tokens.verifyAccessToken(session.accessToken)).toEqual({ userId: user.id, role: 'USER' });
+      expect(session.user).not.toHaveProperty('passwordHash');
+      expect(refreshTokens.create).toHaveBeenCalled();
     });
 
     it('rejeita e-mail já cadastrado', async () => {
@@ -64,30 +50,8 @@ describe('AuthService', () => {
     });
   });
 
-  describe('verifyPhone', () => {
-    it('marca o telefone como verificado após validar o código', async () => {
-      const user = makeUser({ phoneVerifiedAt: null });
-      users.findByEmail.mockResolvedValue(user);
-      users.update.mockResolvedValue({ ...user, phoneVerifiedAt: NOW });
-
-      const result = await service.verifyPhone({ email: user.email, code: '123456' });
-
-      expect(codes.verify).toHaveBeenCalledWith(user, 'PHONE_VERIFICATION', '123456');
-      expect(users.update).toHaveBeenCalledWith(user.id, { phoneVerifiedAt: NOW });
-      expect(result.phoneVerified).toBe(true);
-    });
-
-    it('rejeita se o telefone já foi verificado', async () => {
-      users.findByEmail.mockResolvedValue(makeUser());
-
-      await expect(service.verifyPhone({ email: 'maria@ttp.local', code: '123456' })).rejects.toMatchObject({
-        statusCode: 409,
-      });
-    });
-  });
-
   describe('login', () => {
-    it('rejeita credenciais inválidas', async () => {
+    it('rejeita senha errada', async () => {
       users.findByEmail.mockResolvedValue(makeUser({ passwordHash }));
 
       await expect(service.login({ email: 'maria@ttp.local', password: 'errada1' })).rejects.toMatchObject({
@@ -96,63 +60,27 @@ describe('AuthService', () => {
       });
     });
 
-    it('bloqueia o primeiro login enquanto o telefone não for verificado', async () => {
-      const user = makeUser({ passwordHash, phoneVerifiedAt: null });
-      users.findByEmail.mockResolvedValue(user);
-      codes.issue.mockResolvedValue('654321');
+    it('rejeita e-mail inexistente com a mesma mensagem (não revela se a conta existe)', async () => {
+      users.findByEmail.mockResolvedValue(null);
 
-      await expect(service.login({ email: user.email, password: PASSWORD })).rejects.toMatchObject({
-        statusCode: 403,
-        code: 'PHONE_NOT_VERIFIED',
-        details: { email: user.email, devCode: '654321' },
+      await expect(service.login({ email: 'ninguem@ttp.local', password: PASSWORD })).rejects.toMatchObject({
+        statusCode: 401,
+        message: 'E-mail ou senha inválidos',
       });
-      expect(refreshTokens.create).not.toHaveBeenCalled();
     });
 
-    it('sem 2FA ativo, emite access e refresh token', async () => {
-      const user = makeUser({ passwordHash });
+    it('emite access token (com a role) e refresh token salvo como hash', async () => {
+      const user = makeUser({ passwordHash, role: 'ADMIN' });
       users.findByEmail.mockResolvedValue(user);
 
-      const result = await service.login({ email: user.email, password: PASSWORD });
+      const session = await service.login({ email: user.email, password: PASSWORD });
 
-      if (result.requiresTwoFactor) throw new Error('não deveria exigir 2FA');
-      expect(tokens.verifyAccessToken(result.session.accessToken)).toEqual({ userId: user.id, role: user.role });
+      expect(tokens.verifyAccessToken(session.accessToken)).toEqual({ userId: user.id, role: 'ADMIN' });
+      expect(session.expiresIn).toBe(15 * 60);
       expect(refreshTokens.create).toHaveBeenCalledWith({
         userId: user.id,
-        tokenHash: sha256(result.session.refreshToken),
+        tokenHash: sha256(session.refreshToken),
         expiresAt: new Date(NOW.getTime() + 7 * 24 * 60 * 60 * 1000),
-      });
-    });
-
-    it('com 2FA ativo, envia o código e devolve um challenge em vez dos tokens', async () => {
-      const user = makeUser({ passwordHash, twoFactorEnabled: true });
-      users.findByEmail.mockResolvedValue(user);
-
-      const result = await service.login({ email: user.email, password: PASSWORD });
-
-      expect(result.requiresTwoFactor).toBe(true);
-      expect(codes.issue).toHaveBeenCalledWith(user, 'LOGIN');
-      expect(refreshTokens.create).not.toHaveBeenCalled();
-      if (result.requiresTwoFactor) expect(tokens.verifyChallengeToken(result.challengeToken)).toBe(user.id);
-    });
-  });
-
-  describe('verifyLogin', () => {
-    it('valida o código e emite a sessão', async () => {
-      const user = makeUser({ twoFactorEnabled: true });
-      users.findById.mockResolvedValue(user);
-
-      const session = await service.verifyLogin({ challengeToken: tokens.signChallengeToken(user.id), code: '123456' });
-
-      expect(codes.verify).toHaveBeenCalledWith(user, 'LOGIN', '123456');
-      expect(session.accessToken).toBeDefined();
-    });
-
-    it('não aceita um access token no lugar do challenge', async () => {
-      const access = tokens.signAccessToken({ userId: 'id', role: 'USER' });
-
-      await expect(service.verifyLogin({ challengeToken: access, code: '123456' })).rejects.toMatchObject({
-        code: 'CHALLENGE_EXPIRED',
       });
     });
   });
@@ -194,25 +122,37 @@ describe('AuthService', () => {
     });
   });
 
-  describe('setTwoFactor', () => {
-    it('ativa o 2FA quando a senha confere', async () => {
-      const user = makeUser({ passwordHash });
-      users.findById.mockResolvedValue(user);
-      users.update.mockResolvedValue({ ...user, twoFactorEnabled: true });
+  describe('logout', () => {
+    it('revoga o refresh token informado', async () => {
+      refreshTokens.findByHash.mockResolvedValue({
+        id: 'rt-1',
+        userId: 'user-1',
+        tokenHash: sha256('token'),
+        expiresAt: NOW,
+        revokedAt: null,
+        createdAt: NOW,
+      });
 
-      const result = await service.setTwoFactor(user.id, { enabled: true, password: PASSWORD });
+      await service.logout('token');
 
-      expect(users.update).toHaveBeenCalledWith(user.id, { twoFactorEnabled: true });
-      expect(result.twoFactorEnabled).toBe(true);
+      expect(refreshTokens.revoke).toHaveBeenCalledWith('rt-1');
     });
 
-    it('exige a senha correta', async () => {
+    it('sem token, não faz nada', async () => {
+      await service.logout(undefined);
+
+      expect(refreshTokens.findByHash).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('me', () => {
+    it('retorna os dados públicos do usuário', async () => {
       users.findById.mockResolvedValue(makeUser({ passwordHash }));
 
-      await expect(service.setTwoFactor('id', { enabled: true, password: 'errada1' })).rejects.toMatchObject({
-        code: 'INVALID_PASSWORD',
-      });
-      expect(users.update).not.toHaveBeenCalled();
+      const me = await service.me('id');
+
+      expect(me).not.toHaveProperty('passwordHash');
+      expect(me.email).toBe('maria@ttp.local');
     });
   });
 });

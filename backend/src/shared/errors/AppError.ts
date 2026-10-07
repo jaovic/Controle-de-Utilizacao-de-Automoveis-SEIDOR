@@ -2,7 +2,7 @@
  * Erro de domínio/aplicação com status HTTP associado.
  * Lançado pelos services e convertido em resposta pelo errorHandler.
  * `code` é um identificador estável que o frontend pode usar para decidir o fluxo
- * (ex.: PHONE_NOT_VERIFIED redireciona para a verificação do telefone).
+ * (ex.: TOKEN_EXPIRED faz o front renovar a sessão).
  */
 export class AppError extends Error {
   constructor(

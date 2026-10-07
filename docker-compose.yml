@@ -30,11 +30,8 @@ services:
       # Valor apenas para uso local. Em produção gere um segredo aleatório.
       JWT_SECRET: local-dev-secret-change-me-in-production-0123456789
       COOKIE_SECURE: "false"
-      # console: o código SMS aparece no log da API e na tela (sem conta Twilio)
-      SMS_PROVIDER: console
       ADMIN_EMAIL: admin@ttp.local
       ADMIN_PASSWORD: Admin@123
-      ADMIN_PHONE: "+5511999999999"
       # A API recebe as requisições do front através do container web (1 proxy).
       TRUST_PROXY: 1
     ports:

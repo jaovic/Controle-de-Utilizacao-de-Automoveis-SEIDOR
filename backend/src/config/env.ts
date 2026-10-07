@@ -21,19 +21,7 @@ const envSchema = z
     ACCESS_TOKEN_TTL_MINUTES: z.coerce.number().int().positive().default(15),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(7),
     COOKIE_SECURE: booleanString.default('false'),
-
-    SMS_PROVIDER: z.enum(['console', 'twilio']).default('console'),
-    TWILIO_ACCOUNT_SID: z.string().optional(),
-    TWILIO_AUTH_TOKEN: z.string().optional(),
-    TWILIO_FROM_NUMBER: z.string().optional(),
-    /** modo demonstração: mostra o código na tela quando a Twilio recusa o envio por limitação da conta */
-    SMS_DEMO_FALLBACK: booleanString.default('false'),
-  })
-  .refine(
-    (env) =>
-      env.SMS_PROVIDER !== 'twilio' || (env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM_NUMBER),
-    { message: 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN e TWILIO_FROM_NUMBER são obrigatórias com SMS_PROVIDER=twilio' },
-  );
+  });
 
 const parsed = envSchema.safeParse(process.env);
 

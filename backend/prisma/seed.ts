@@ -5,9 +5,9 @@ import 'dotenv/config';
 const prisma = new PrismaClient();
 
 /**
- * Cria o administrador inicial (já com telefone verificado) e alguns dados de exemplo.
+ * Cria o administrador inicial e alguns dados de exemplo.
  * Idempotente: pode rodar a cada deploy sem duplicar nada.
- * Em produção, defina ADMIN_EMAIL / ADMIN_PASSWORD / ADMIN_PHONE com valores próprios.
+ * Em produção, defina ADMIN_EMAIL / ADMIN_PASSWORD com valores próprios.
  */
 async function seedAdmin() {
   const email = (process.env.ADMIN_EMAIL ?? 'admin@ttp.local').toLowerCase();
@@ -21,10 +21,8 @@ async function seedAdmin() {
     data: {
       name: process.env.ADMIN_NAME ?? 'Administrador',
       email,
-      phone: process.env.ADMIN_PHONE ?? '+5511999999999',
       passwordHash: await bcrypt.hash(process.env.ADMIN_PASSWORD ?? 'Admin@123', 10),
       role: 'ADMIN',
-      phoneVerifiedAt: new Date(),
     },
   });
   console.log(`Admin ${email} criado.`);

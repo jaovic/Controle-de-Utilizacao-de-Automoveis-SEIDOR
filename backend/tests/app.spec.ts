@@ -53,21 +53,15 @@ describe('App (HTTP)', () => {
       expect(response.status).toBe(400);
     });
 
-    it('um token de outro tipo (challenge 2FA) não serve como access token', async () => {
-      const challenge = tokens.signChallengeToken('6f1c1f1e-0000-4000-8000-000000000001');
-      const response = await request(app).get('/api/cars').set('Authorization', `Bearer ${challenge}`);
-
-      expect(response.status).toBe(401);
-    });
 
     it('valida o corpo do cadastro', async () => {
       const response = await request(app)
         .post('/api/auth/register')
-        .send({ name: 'Ana', email: 'nao-e-email', phone: '11999', password: '123' });
+        .send({ name: 'Ana', email: 'nao-e-email', password: '123' });
 
       expect(response.status).toBe(400);
       expect(Object.keys(response.body.error.details.body)).toEqual(
-        expect.arrayContaining(['email', 'phone', 'password']),
+        expect.arrayContaining(['email', 'password']),
       );
     });
 

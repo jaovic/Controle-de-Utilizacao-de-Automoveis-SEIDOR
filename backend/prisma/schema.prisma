@@ -58,30 +58,16 @@ enum Role {
   USER
 }
 
-enum TwoFactorPurpose {
-  PHONE_VERIFICATION
-  LOGIN
-}
-
-/// Usuário do sistema. O telefone é verificado por SMS no cadastro (obrigatório antes do
-/// primeiro login) e, se two_factor_enabled estiver ativo, todo login exige um código por SMS.
+/// Usuário do sistema (login com e-mail e senha; a role define as permissões).
 model User {
-  id                     String            @id @default(uuid()) @db.Uuid
-  name                   String
-  email                  String            @unique
-  passwordHash           String            @map("password_hash")
-  role                   Role              @default(USER)
-  phone                  String
-  phoneVerifiedAt        DateTime?         @map("phone_verified_at")
-  twoFactorEnabled       Boolean           @default(false) @map("two_factor_enabled")
-  /// Hash SHA-256 do código enviado por SMS (nunca o código em texto puro)
-  twoFactorCode          String?           @map("two_factor_code")
-  twoFactorCodePurpose   TwoFactorPurpose? @map("two_factor_code_purpose")
-  twoFactorCodeExpiresAt DateTime?         @map("two_factor_code_expires_at")
-  twoFactorAttempts      Int               @default(0) @map("two_factor_attempts")
-  createdAt              DateTime          @default(now()) @map("created_at")
-  updatedAt              DateTime          @updatedAt @map("updated_at")
-  refreshTokens          RefreshToken[]
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String
+  email         String         @unique
+  passwordHash  String         @map("password_hash")
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  refreshTokens RefreshToken[]
 
   @@map("users")
 }

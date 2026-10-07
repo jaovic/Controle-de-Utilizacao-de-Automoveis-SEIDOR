@@ -5,10 +5,8 @@ import { UnauthorizedError } from '../../shared/errors/AppError';
 
 export type AccessTokenPayload = { userId: string; role: Role };
 
-// "audience" separa os tipos de JWT: um challenge de 2FA nunca serve como access token e vice-versa.
+// "audience" identifica o tipo do JWT: só tokens emitidos como access token são aceitos.
 const ACCESS_AUDIENCE = 'access';
-const CHALLENGE_AUDIENCE = '2fa-challenge';
-const CHALLENGE_TTL_SECONDS = 5 * 60;
 
 export const sha256 = (value: string) => createHash('sha256').update(value).digest('hex');
 
@@ -39,23 +37,6 @@ export class TokenService {
         throw new UnauthorizedError('Sessão expirada', 'TOKEN_EXPIRED');
       }
       throw new UnauthorizedError('Token inválido', 'INVALID_TOKEN');
-    }
-  }
-
-  signChallengeToken(userId: string) {
-    return jwt.sign({}, this.secret, {
-      subject: userId,
-      audience: CHALLENGE_AUDIENCE,
-      expiresIn: CHALLENGE_TTL_SECONDS,
-    });
-  }
-
-  verifyChallengeToken(token: string): string {
-    try {
-      const payload = jwt.verify(token, this.secret, { audience: CHALLENGE_AUDIENCE }) as jwt.JwtPayload;
-      return payload.sub as string;
-    } catch {
-      throw new UnauthorizedError('Verificação expirada. Faça login novamente.', 'CHALLENGE_EXPIRED');
     }
   }
 

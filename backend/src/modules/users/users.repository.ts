@@ -3,7 +3,6 @@ import type { Prisma, PrismaClient, Role, User } from '@prisma/client';
 export type CreateUserData = {
   name: string;
   email: string;
-  phone: string;
   passwordHash: string;
 };
 

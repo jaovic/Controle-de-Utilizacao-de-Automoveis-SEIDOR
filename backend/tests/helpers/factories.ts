@@ -69,13 +69,6 @@ export const makeUser = (overrides: Partial<User> = {}): User => ({
   email: 'maria@ttp.local',
   passwordHash: 'hash',
   role: 'USER',
-  phone: '+5511999998888',
-  phoneVerifiedAt: new Date('2026-10-01T00:00:00Z'),
-  twoFactorEnabled: false,
-  twoFactorCode: null,
-  twoFactorCodePurpose: null,
-  twoFactorCodeExpiresAt: null,
-  twoFactorAttempts: 0,
   ...timestamps(),
   ...overrides,
 });

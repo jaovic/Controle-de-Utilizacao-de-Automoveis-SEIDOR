@@ -1,6 +1,6 @@
 import { registerSchema } from '../../src/modules/auth/auth.schemas';
 
-const base = { name: 'Maria', email: 'maria@ttp.local', phone: '+5511999998888' };
+const base = { name: 'Maria', email: 'maria@ttp.local' };
 const passwordErrors = (password: string) => {
   const result = registerSchema.safeParse({ ...base, password });
   return result.success ? [] : (result.error.flatten().fieldErrors.password ?? []);

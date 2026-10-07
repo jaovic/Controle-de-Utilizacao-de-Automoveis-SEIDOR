@@ -1,13 +1,7 @@
 import type { CookieOptions, Request, Response } from 'express';
 import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE, getAuth } from '../../shared/middlewares/auth';
 import type { AuthService, Session } from './auth.service';
-import type {
-  LoginInput,
-  LoginVerifyInput,
-  RegisterInput,
-  TwoFactorSettingsInput,
-  VerifyPhoneInput,
-} from './auth.schemas';
+import type { LoginInput, RegisterInput } from './auth.schemas';
 
 export class AuthController {
   constructor(
@@ -16,36 +10,11 @@ export class AuthController {
   ) {}
 
   register = async (req: Request, res: Response) => {
-    const { user, devCode } = await this.authService.register(req.body as RegisterInput);
-    res.status(201).json({
-      message: 'Conta criada. Enviamos um código por SMS para confirmar seu telefone.',
-      user,
-      devCode,
-    });
-  };
-
-  verifyPhone = async (req: Request, res: Response) => {
-    const user = await this.authService.verifyPhone(req.body as VerifyPhoneInput);
-    res.json({ message: 'Telefone verificado. Você já pode fazer login.', user });
-  };
-
-  resendCode = async (req: Request, res: Response) => {
-    const { devCode } = await this.authService.resendVerificationCode((req.body as { email: string }).email);
-    res.json({ message: 'Se houver uma verificação pendente para este e-mail, um novo código foi enviado.', devCode });
+    this.sendSession(res, await this.authService.register(req.body as RegisterInput), 201);
   };
 
   login = async (req: Request, res: Response) => {
-    const result = await this.authService.login(req.body as LoginInput);
-
-    if (result.requiresTwoFactor) {
-      res.json({ requiresTwoFactor: true, challengeToken: result.challengeToken, devCode: result.devCode });
-      return;
-    }
-    this.sendSession(res, result.session);
-  };
-
-  verifyLogin = async (req: Request, res: Response) => {
-    this.sendSession(res, await this.authService.verifyLogin(req.body as LoginVerifyInput));
+    this.sendSession(res, await this.authService.login(req.body as LoginInput));
   };
 
   refresh = async (req: Request, res: Response) => {
@@ -67,10 +36,6 @@ export class AuthController {
     res.json(await this.authService.me(getAuth(res).userId));
   };
 
-  setTwoFactor = async (req: Request, res: Response) => {
-    res.json(await this.authService.setTwoFactor(getAuth(res).userId, req.body as TwoFactorSettingsInput));
-  };
-
   /** O refresh token pode vir no body (Postman/Swagger) ou no cookie (frontend). */
   private readRefreshToken(req: Request): string | undefined {
     return (req.body as { refreshToken?: string } | undefined)?.refreshToken ?? req.cookies?.[REFRESH_TOKEN_COOKIE];
@@ -81,14 +46,14 @@ export class AuthController {
   }
 
   /** Define os cookies httpOnly (frontend) e também devolve os tokens no body (clientes de API). */
-  private sendSession(res: Response, session: Session) {
+  private sendSession(res: Response, session: Session, status = 200) {
     res.cookie(ACCESS_TOKEN_COOKIE, session.accessToken, this.cookieOptions(session.expiresIn * 1000));
     res.cookie(
       REFRESH_TOKEN_COOKIE,
       session.refreshToken,
       this.cookieOptions(session.refreshExpiresAt.getTime() - Date.now()),
     );
-    res.json({
+    res.status(status).json({
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
       expiresIn: session.expiresIn,
