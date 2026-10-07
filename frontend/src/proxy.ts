@@ -44,6 +44,9 @@ function roleFrom(token: string) {
 }
 
 export const config = {
-  // Ignora a API (proxy próprio), arquivos estáticos e de imagem.
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)"],
+  // Ignora a API (proxy próprio), arquivos estáticos, imagens e os arquivos de metadados
+  // (manifest, robots, ícones e imagem de compartilhamento), que precisam ser públicos.
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|robots.txt|manifest.webmanifest|apple-icon|opengraph-image|.*\\.(?:svg|png|jpg|jpeg|webp|ico)$).*)",
+  ],
 };
