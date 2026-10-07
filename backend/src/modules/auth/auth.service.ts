@@ -41,9 +41,15 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
     const user = await this.usersRepository.create({ name, email, phone, passwordHash });
-    const devCode = await this.twoFactorCodes.issue(user, 'PHONE_VERIFICATION');
 
-    return { user: toPublicUser(user), devCode };
+    try {
+      const devCode = await this.twoFactorCodes.issue(user, 'PHONE_VERIFICATION');
+      return { user: toPublicUser(user), devCode };
+    } catch (error) {
+      // Sem o SMS a conta não teria como ser verificada: desfaz o cadastro para permitir tentar de novo.
+      await this.usersRepository.delete(user.id);
+      throw error;
+    }
   }
 
   /** Confirma o telefone com o código do cadastro. Só depois disso o primeiro login é permitido. */

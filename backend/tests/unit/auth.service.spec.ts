@@ -46,6 +46,16 @@ describe('AuthService', () => {
       expect(result.user).not.toHaveProperty('passwordHash');
     });
 
+    it('desfaz o cadastro se o SMS não puder ser enviado', async () => {
+      const user = makeUser({ phoneVerifiedAt: null });
+      users.findByEmail.mockResolvedValue(null);
+      users.create.mockResolvedValue(user);
+      codes.issue.mockRejectedValue(new Error('SMS_FAILED'));
+
+      await expect(service.register(input)).rejects.toThrow('SMS_FAILED');
+      expect(users.delete).toHaveBeenCalledWith(user.id);
+    });
+
     it('rejeita e-mail já cadastrado', async () => {
       users.findByEmail.mockResolvedValue(makeUser());
 
