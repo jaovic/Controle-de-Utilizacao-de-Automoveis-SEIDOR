@@ -5,7 +5,7 @@ import type { TwoFactorCodeService } from '../../src/modules/auth/twoFactorCode.
 import { makeUser, mockRefreshTokensRepository, mockUsersRepository } from '../helpers/factories';
 
 const NOW = new Date('2026-10-07T12:00:00Z');
-const PASSWORD = 'Senha123';
+const PASSWORD = 'Senha@123';
 
 describe('AuthService', () => {
   let users: ReturnType<typeof mockUsersRepository>;

@@ -17,12 +17,15 @@ const phone = z
     message: 'telefone deve estar no formato internacional, ex.: +5511999998888',
   });
 
+// Senha forte: as mesmas regras exibidas no medidor de força do cadastro (frontend).
 const password = z
   .string({ required_error: 'senha é obrigatória' })
   .min(8, 'a senha deve ter ao menos 8 caracteres')
   .max(72, 'a senha deve ter no máximo 72 caracteres')
-  .regex(/[A-Za-z]/, 'a senha deve conter ao menos uma letra')
-  .regex(/\d/, 'a senha deve conter ao menos um número');
+  .regex(/[a-z]/, 'a senha deve conter ao menos uma letra minúscula')
+  .regex(/[A-Z]/, 'a senha deve conter ao menos uma letra maiúscula')
+  .regex(/\d/, 'a senha deve conter ao menos um número')
+  .regex(/[^A-Za-z0-9]/, 'a senha deve conter ao menos um caractere especial (ex.: ! @ # $ %)');
 
 export const registerSchema = z.object({
   name: requiredText('nome', 120),

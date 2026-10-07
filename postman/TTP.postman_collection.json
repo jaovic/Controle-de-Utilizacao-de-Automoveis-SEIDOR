@@ -202,7 +202,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Usuário Postman\",\n  \"email\": \"{{userEmail}}\",\n  \"phone\": \"+5511988887777\",\n  \"password\": \"Senha123\"\n}",
+              "raw": "{\n  \"name\": \"Usuário Postman\",\n  \"email\": \"{{userEmail}}\",\n  \"phone\": \"+5511988887777\",\n  \"password\": \"Senha@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -250,7 +250,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha123\"\n}",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -347,7 +347,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha123\"\n}",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -492,7 +492,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"enabled\": true,\n  \"password\": \"Senha123\"\n}",
+              "raw": "{\n  \"enabled\": true,\n  \"password\": \"Senha@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -543,7 +543,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha123\"\n}",
+              "raw": "{\n  \"email\": \"{{userEmail}}\",\n  \"password\": \"Senha@123\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

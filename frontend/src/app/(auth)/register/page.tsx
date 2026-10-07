@@ -4,8 +4,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
+import { isStrongPassword, PasswordStrength } from "@/components/PasswordStrength";
 import { Alert, Button, Card, Field, Input } from "@/components/ui";
 import { api, errorMessage } from "@/lib/api";
 import { pendingAuth } from "@/lib/pendingAuth";
@@ -20,11 +21,7 @@ const schema = z
       .string()
       .transform((value) => value.replace(/[\s()-]/g, ""))
       .refine((value) => /^\+[1-9]\d{9,14}$/.test(value), "Use o formato internacional, ex.: +5511999998888"),
-    password: z
-      .string()
-      .min(8, "Mínimo de 8 caracteres")
-      .regex(/[A-Za-z]/, "Inclua ao menos uma letra")
-      .regex(/\d/, "Inclua ao menos um número"),
+    password: z.string().refine(isStrongPassword, "Use uma senha forte: cumpra todos os requisitos abaixo"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.password === data.confirmPassword, {
@@ -41,8 +38,10 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
-  } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(schema) });
+  } = useForm<FormInput, unknown, FormOutput>({ resolver: zodResolver(schema), defaultValues: { password: "" } });
+  const password = useWatch({ control, name: "password" }) ?? "";
 
   async function onSubmit({ name, email, phone, password }: FormOutput) {
     setError(null);
@@ -71,9 +70,10 @@ export default function RegisterPage() {
         <Field label="Celular" htmlFor="phone" error={errors.phone?.message} hint="Com código do país e DDD, ex.: +5511999998888">
           <Input id="phone" type="tel" autoComplete="tel" placeholder="+5511999998888" {...register("phone")} />
         </Field>
-        <Field label="Senha" htmlFor="password" error={errors.password?.message} hint="Mínimo 8 caracteres, com letra e número">
+        <Field label="Senha" htmlFor="password" error={errors.password?.message} hint={password ? undefined : "Use uma senha forte"}>
           <Input id="password" type="password" autoComplete="new-password" {...register("password")} />
         </Field>
+        <PasswordStrength value={password} />
         <Field label="Confirmar senha" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
           <Input id="confirmPassword" type="password" autoComplete="new-password" {...register("confirmPassword")} />
         </Field>

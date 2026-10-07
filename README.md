@@ -61,7 +61,7 @@ npm run dev                                  # http://localhost:3000
 ### Testes
 
 ```bash
-cd backend && npm test     # 89 testes (unitários + HTTP), sem precisar de banco
+cd backend && npm test     # 95 testes (unitários + HTTP), sem precisar de banco
 cd frontend && npm run lint && npm run build
 ```
 
@@ -74,7 +74,7 @@ Cadastro ──► SMS com código ──► Verificar telefone ──► Login 
                                  (obrigatório 1x)                     └── não ──────────────────────► Sessão
 ```
 
-- **Cadastro:** nome, e-mail, celular no formato internacional (`+5511999998888`) e senha (mínimo 8 caracteres, com letra e número). A conta nasce com role `USER`.
+- **Cadastro:** nome, e-mail, celular no formato internacional (`+5511999998888`) e uma senha forte (mínimo 8 caracteres, com maiúscula, minúscula, número e caractere especial; a tela mostra um medidor de força). A conta nasce com role `USER`.
 - **Verificação do telefone:** obrigatória **uma única vez**, antes do primeiro login. Enquanto ela não for feita, o login responde `403 PHONE_NOT_VERIFIED`, o front leva o usuário para a tela de verificação e um novo código é enviado.
 - **2FA no login (opcional):** em **Meu perfil**, o usuário ativa a verificação em duas etapas, confirmando com a senha. A partir daí, todo login pede também um código por SMS.
 - **Códigos:** 6 dígitos, válidos por 5 minutos, no máximo 5 tentativas e 30 segundos entre reenvios. No banco fica apenas o hash, nas colunas `two_factor_code*` da tabela `users`.

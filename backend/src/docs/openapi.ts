@@ -323,7 +323,7 @@ export const openApiDocument = {
           name: { type: 'string', example: 'Maria Souza' },
           email: { type: 'string', example: 'maria@email.com' },
           phone: { type: 'string', example: '+5511999998888', description: 'Formato internacional (E.164)' },
-          password: { type: 'string', example: 'Senha123', description: 'Mínimo 8 caracteres, com letra e número' },
+          password: { type: 'string', example: 'Senha@123', description: 'Senha forte: mínimo 8 caracteres, com maiúscula, minúscula, número e caractere especial' },
         },
       },
       User: {
